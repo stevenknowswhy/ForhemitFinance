@@ -1,0 +1,45 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
+import "./globals.css";
+import { ConvexClientProvider } from "./ConvexClientProvider";
+import { StripeProvider } from "./components/StripeProvider";
+import { ThemeProvider } from "./components/ThemeProvider";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "EZ Financial - The Financial Cockpit for Early-Stage Startups",
+  description: "Simple bookkeeping that doesn't slow you down. Powerful runway visibility for startups and new businesses across America. Built for founders, not accountants.",
+  keywords: ["startup bookkeeping", "burn rate", "runway", "startup finances", "new business accounting", "small business bookkeeping", "solopreneur finances"],
+};
+
+// Force dynamic rendering to avoid static generation issues with Clerk
+export const dynamic = 'force-dynamic';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <ClerkProvider>
+      <html lang="en" suppressHydrationWarning>
+        <body className={inter.className}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange={false}
+            storageKey="ez-financial-theme"
+          >
+            <StripeProvider>
+              <ConvexClientProvider>{children}</ConvexClientProvider>
+            </StripeProvider>
+          </ThemeProvider>
+        </body>
+      </html>
+    </ClerkProvider>
+  );
+}
+
