@@ -15,6 +15,7 @@ A modern, full-stack financial management application built with Next.js, Convex
 - **Account Overview**: Real-time balance tracking across all connected accounts
 - **Simplified Dashboard**: Clean 3-card layout (Total Income, Total Expenses, Burn Rate) for first-time users
 - **Receipt Management**: Upload, view, and manage receipts with image support
+- **Business Branding**: Upload business/website icon for use in reports and documents
 - **Dark Mode**: Full light/dark theme support with system preference detection
 
 ### AI Features
@@ -43,6 +44,7 @@ A modern, full-stack financial management application built with Next.js, Convex
   - Side-by-side comparison cards in blended view
   - Business-specific KPIs: Burn Rate, Runway calculation
 - ✅ **Theme Toggle**: Easy switching between light, dark, and system themes
+- ✅ **Business Icon Upload**: Upload and store business/website icon for branding on reports and documents
 
 ## 🏗️ Architecture
 

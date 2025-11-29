@@ -338,6 +338,8 @@ export default defineSchema({
   // Business Profiles
   business_profiles: defineTable({
     userId: v.id("users"),
+    // Business Branding
+    businessIcon: v.optional(v.string()), // URL to uploaded business/website icon for reports
     // Core Business Identity
     legalBusinessName: v.optional(v.string()),
     dbaTradeName: v.optional(v.string()),

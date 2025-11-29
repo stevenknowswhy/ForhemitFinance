@@ -11,6 +11,10 @@ type ReceiptUploadMeta = {
   transactionId?: string; // Id<"transactions_raw"> as string
 };
 
+type BusinessIconUploadMeta = {
+  userId: string; // Convex Id<"users"> as string
+};
+
 export const ourFileRouter = {
   receiptUploader: f({
     image: { maxFileSize: "4MB", maxFileCount: 10 },
@@ -48,6 +52,40 @@ export const ourFileRouter = {
         fileKey: file.key,
         originalFilename: file.name,
         mimeType: file.type || "image/jpeg", // fallback
+        sizeBytes: file.size,
+      };
+    }),
+
+  businessIconUploader: f({
+    image: { maxFileSize: "2MB", maxFileCount: 1 },
+  })
+    .input(z.object({
+      userId: z.string(),
+    }))
+    .middleware(async ({ input }) => {
+      const userId = input?.userId;
+
+      if (!userId) {
+        throw new Error("Missing userId in upload metadata");
+      }
+
+      return {
+        userId: String(userId),
+      } satisfies BusinessIconUploadMeta;
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      console.log("Business icon upload complete for userId:", metadata?.userId);
+      // Use ufsUrl if available, fallback to url for backward compatibility
+      const fileUrl = (file as any).ufsUrl || file.url;
+      console.log("Business icon url", fileUrl);
+      
+      // Return enough data for client -> Convex mutation
+      return {
+        userId: metadata.userId,
+        fileUrl: fileUrl,
+        fileKey: file.key,
+        originalFilename: file.name,
+        mimeType: file.type || "image/png", // fallback
         sizeBytes: file.size,
       };
     }),

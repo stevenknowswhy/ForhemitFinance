@@ -39,6 +39,8 @@ export const getBusinessProfile = query({
  */
 export const updateBusinessProfile = mutation({
   args: {
+    // Business Branding
+    businessIcon: v.optional(v.string()), // URL to uploaded business icon
     // Core Business Identity
     legalBusinessName: v.optional(v.string()),
     dbaTradeName: v.optional(v.string()),

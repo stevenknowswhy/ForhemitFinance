@@ -95,6 +95,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Receipt Upload Modal**: Integrated upload flow
   - **Implementation**: `apps/web/app/dashboard/components/ReceiptUploadModal.tsx`
 
+### Added - Business Branding
+- **Business Icon Upload**: Upload and store business/website icon for branding
+  - **Why**: Users need to brand their financial reports and documents with their business logo
+  - **Implementation**: 
+    - UploadThing endpoint: `businessIconUploader` in `apps/web/app/api/uploadthing/core.ts`
+    - Schema: `businessIcon` field in `business_profiles` table
+    - UI: Icon upload section in Business Profile Settings
+  - **Features**:
+    - Upload business/website icon (max 2MB, images only)
+    - Preview uploaded icon in settings
+    - Remove icon functionality
+    - Icon URL stored in database for reuse in reports
+  - **Use Case**: Icon will be used in generated reports, investor packs, and other branded documents
+
 ### Added - Navigation Improvements
 - **Mobile-First Navigation**: Bottom navigation for mobile, top navigation for desktop
   - **Why**: Better mobile UX, follows platform conventions

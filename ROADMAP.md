@@ -564,6 +564,35 @@ Export as:
 7. **Custom Dashboard Widgets**
    - User-configurable layout
 
+8. **Voice Functionality & Voice Onboarding**
+   - **Voice Input Mode**: Switch between voice and manual input for transaction entry
+     - Voice-to-text transcription for transaction details
+     - Natural language parsing: "I spent $42 on gas for business"
+     - Voice commands for common actions (approve, reject, edit)
+     - Hands-free transaction entry while driving or multitasking
+     - Mobile-optimized voice interface
+   - **Voice Onboarding Option**: Alternative onboarding flow using voice
+     - Guided voice setup for new users
+     - Voice prompts for account connection
+     - Spoken explanations of features and concepts
+     - Accessibility-first design for users who prefer audio
+     - Option to switch to manual onboarding at any time
+   - **Voice Settings**: User preferences for voice features
+     - Enable/disable voice mode
+     - Voice recognition language settings
+     - Voice command customization
+     - Privacy controls for voice data
+   - **Use Cases**:
+     - Quick transaction entry while on the go
+     - Accessibility for users with visual or motor impairments
+     - Multitasking (driving, cooking, etc.)
+     - Faster data entry for power users
+   - **Technical Considerations**:
+     - Browser Web Speech API integration
+     - Fallback to manual input if voice unavailable
+     - Privacy-first: voice data processed client-side when possible
+     - Offline voice recognition support (where available)
+
 ### Phase 3 – Advanced Optimization & Scale
 
 **Focus:** Deeper planning, integrations, and higher-value businesses—while preserving simplicity.
