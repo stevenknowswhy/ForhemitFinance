@@ -31,7 +31,7 @@ export default function ConnectBankPage() {
     const fetchLinkToken = async () => {
       try {
         setIsLoading(true);
-        const response = await createLinkToken();
+        const response = await createLinkToken({});
         setLinkToken(response.linkToken);
       } catch (err: any) {
         console.error("Error creating link token:", err);

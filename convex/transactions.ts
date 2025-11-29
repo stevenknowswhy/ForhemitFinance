@@ -176,79 +176,23 @@ export const rejectEntry = mutation({
 });
 
 /**
- * Process a new transaction and generate proposed entry
- * This is called when Plaid syncs new transactions
+ * Process a new transaction and generate proposed entry using AI system
+ * This is called when Plaid syncs new transactions or manual entries
+ * Uses the full AI system with accounting engine + OpenRouter LLM
  */
 export const processTransaction = mutation({
   args: {
     transactionId: v.id("transactions_raw"),
   },
   handler: async (ctx, args) => {
-    const transaction = await ctx.db.get(args.transactionId);
-    if (!transaction) {
-      throw new Error("Transaction not found");
-    }
-
-    const user = await ctx.db.get(transaction.userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Get user's accounts
-    const accounts = await ctx.db
-      .query("accounts")
-      .withIndex("by_user", (q) => q.eq("userId", transaction.userId))
-      .collect();
-
-    // Simple suggestion logic (in production, use accounting engine package)
-    const isExpense = transaction.amount < 0;
-    const isIncome = transaction.amount > 0;
-    
-    // Find default accounts
-    const bankAccount = accounts.find(a => a.type === "asset") || accounts[0];
-    const expenseAccount = accounts.find(a => a.type === "expense") || accounts[0];
-    const incomeAccount = accounts.find(a => a.type === "income") || accounts[0];
-
-    if (!bankAccount) {
-      throw new Error("No bank account found");
-    }
-
-    // Generate simple suggestion
-    const suggestion = isIncome
-      ? {
-          debitAccountId: bankAccount._id,
-          creditAccountId: incomeAccount._id,
-          amount: Math.abs(transaction.amount),
-          confidence: 0.75,
-          explanation: `Income transaction: ${transaction.description}`,
-        }
-      : {
-          debitAccountId: expenseAccount._id,
-          creditAccountId: bankAccount._id,
-          amount: Math.abs(transaction.amount),
-          confidence: 0.70,
-          explanation: `Expense: ${transaction.merchant || transaction.description}`,
-        };
-
-    // Create proposed entry
-    const proposedEntryId = await ctx.db.insert("entries_proposed", {
-      userId: transaction.userId,
-      transactionId: transaction._id,
-      date: new Date(transaction.date).getTime(),
-      memo: transaction.description,
-      debitAccountId: suggestion.debitAccountId,
-      creditAccountId: suggestion.creditAccountId,
-      amount: suggestion.amount,
-      currency: transaction.currency,
-      confidence: suggestion.confidence,
-      source: "plaid_rules",
-      explanation: suggestion.explanation,
-      isBusiness: true, // Default, can be refined
-      status: "pending",
-      createdAt: Date.now(),
+    // Schedule the AI suggestion to run as an action
+    // This allows us to use the full AI system (actions can call external APIs)
+    await ctx.scheduler.runAfter(0, api.ai_entries.suggestDoubleEntry, {
+      transactionId: args.transactionId,
     });
 
-    return { proposedEntryId };
+    // Return immediately - the AI system will create the proposed entry asynchronously
+    return { success: true, message: "AI suggestion generation started" };
   },
 });
 
@@ -265,6 +209,7 @@ export const createRaw = mutation({
     description: v.string(),
     category: v.optional(v.array(v.string())),
     isPending: v.boolean(),
+    isBusiness: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -287,7 +232,7 @@ export const createRaw = mutation({
       throw new Error("Account not found or unauthorized");
     }
 
-    const transactionId = await ctx.db.insert("transactions_raw", {
+    const transactionData: any = {
       userId: user._id,
       accountId: args.accountId,
       plaidTransactionId: args.plaidTransactionId,
@@ -300,9 +245,163 @@ export const createRaw = mutation({
       isPending: args.isPending,
       source: args.plaidTransactionId ? "plaid" : "manual",
       createdAt: Date.now(),
-    });
+    };
+
+    // Only include isBusiness if it's explicitly set (not undefined)
+    if (args.isBusiness !== undefined) {
+      transactionData.isBusiness = args.isBusiness;
+    }
+
+    const transactionId = await ctx.db.insert("transactions_raw", transactionData);
 
     return transactionId;
+  },
+});
+
+/**
+ * Create a receipt from UploadThing upload
+ */
+export const createReceipt = mutation({
+  args: {
+    userId: v.id("users"),
+    transactionId: v.optional(v.id("transactions_raw")),
+    fileUrl: v.string(),
+    fileKey: v.string(),
+    originalFilename: v.string(),
+    mimeType: v.string(),
+    sizeBytes: v.number(),
+    // Legacy support
+    storageUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      throw new Error("Not authenticated or email not found");
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user || user._id !== args.userId) {
+      throw new Error("User not found or unauthorized");
+    }
+
+    const now = Date.now();
+
+    // Create receipt doc with enhanced metadata
+    const receiptId = await ctx.db.insert("receipts", {
+      userId: args.userId,
+      transactionId: args.transactionId,
+      fileUrl: args.fileUrl,
+      fileKey: args.fileKey,
+      originalFilename: args.originalFilename,
+      mimeType: args.mimeType,
+      sizeBytes: args.sizeBytes,
+      // Legacy field for backward compatibility
+      storageUrl: args.storageUrl || args.fileUrl,
+      uploadedAt: now,
+    });
+
+    // Bidirectional linking: If transaction ID is provided, update the transaction
+    if (args.transactionId) {
+      const transaction = await ctx.db.get(args.transactionId);
+      if (transaction && transaction.userId === args.userId) {
+        const existingReceiptIds = transaction.receiptIds ?? [];
+        
+        // Update transaction with receiptIds array and legacy receiptUrl
+        await ctx.db.patch(args.transactionId, {
+          receiptIds: [...existingReceiptIds, receiptId],
+          receiptUrl: args.fileUrl, // Keep for backward compatibility
+        });
+      }
+    }
+
+    return receiptId;
+  },
+});
+
+/**
+ * Get receipts for a transaction
+ */
+export const getReceiptsByTransaction = query({
+  args: {
+    transactionId: v.id("transactions_raw"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      throw new Error("Not authenticated or email not found");
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Verify transaction belongs to user
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction || transaction.userId !== user._id) {
+      throw new Error("Transaction not found or unauthorized");
+    }
+
+    // Get all receipts for this transaction using the new index
+    const receipts = await ctx.db
+      .query("receipts")
+      .withIndex("by_transaction", (q) => q.eq("transactionId", args.transactionId))
+      .collect();
+
+    return receipts;
+  },
+});
+
+/**
+ * Get all receipts for the current user
+ */
+export const getUserReceipts = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      throw new Error("Not authenticated or email not found");
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const receipts = await ctx.db
+      .query("receipts")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .collect();
+
+    return receipts;
+  },
+});
+
+/**
+ * Get transaction by ID
+ */
+export const getById = query({
+  args: {
+    transactionId: v.id("transactions_raw"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.transactionId);
   },
 });
 
@@ -318,5 +417,205 @@ export const getByPlaidId = query({
       .query("transactions_raw")
       .withIndex("by_plaid_id", (q) => q.eq("plaidTransactionId", args.plaidTransactionId))
       .first();
+  },
+});
+
+/**
+ * Update a transaction
+ */
+export const updateTransaction = mutation({
+  args: {
+    transactionId: v.id("transactions_raw"),
+    amount: v.optional(v.number()),
+    date: v.optional(v.string()),
+    merchant: v.optional(v.string()),
+    description: v.optional(v.string()),
+    category: v.optional(v.array(v.string())),
+    isBusiness: v.optional(v.boolean()),
+    isPending: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      throw new Error("Not authenticated or email not found");
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction || transaction.userId !== user._id) {
+      throw new Error("Transaction not found or unauthorized");
+    }
+
+    // Build update object with only provided fields
+    const updateData: any = {};
+    if (args.amount !== undefined) updateData.amount = args.amount;
+    if (args.date !== undefined) updateData.date = args.date;
+    if (args.merchant !== undefined) updateData.merchant = args.merchant;
+    if (args.description !== undefined) updateData.description = args.description;
+    if (args.category !== undefined) updateData.category = args.category;
+    if (args.isBusiness !== undefined) updateData.isBusiness = args.isBusiness;
+    if (args.isPending !== undefined) updateData.isPending = args.isPending;
+
+    await ctx.db.patch(args.transactionId, updateData);
+
+    // If transaction was updated, regenerate AI suggestion if needed
+    if (args.description || args.category || args.merchant || args.isBusiness !== undefined) {
+      // Schedule AI suggestion regeneration
+      await ctx.scheduler.runAfter(0, api.ai_entries.suggestDoubleEntry, {
+        transactionId: args.transactionId,
+      });
+    }
+
+    return { success: true };
+  },
+});
+
+/**
+ * Delete a transaction
+ */
+export const deleteTransaction = mutation({
+  args: {
+    transactionId: v.id("transactions_raw"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      throw new Error("Not authenticated or email not found");
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction || transaction.userId !== user._id) {
+      throw new Error("Transaction not found or unauthorized");
+    }
+
+    // Delete any associated proposed entries
+    const proposedEntries = await ctx.db
+      .query("entries_proposed")
+      .withIndex("by_transaction", (q) => q.eq("transactionId", args.transactionId))
+      .collect();
+
+    for (const entry of proposedEntries) {
+      await ctx.db.delete(entry._id);
+    }
+
+    // Delete the transaction
+    await ctx.db.delete(args.transactionId);
+
+    return { success: true };
+  },
+});
+
+/**
+ * Find similar transactions by merchant/description
+ * Used for auto-populating fields based on previous transactions
+ */
+export const findSimilarTransactions = query({
+  args: {
+    merchant: v.optional(v.string()),
+    description: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      return [];
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user) {
+      return [];
+    }
+
+    // Get all user transactions
+    const allTransactions = await ctx.db
+      .query("transactions_raw")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .collect();
+
+    // Find similar transactions
+    const similar: Array<{
+      transaction: any;
+      matchScore: number;
+    }> = [];
+
+    const searchMerchant = (args.merchant || "").toLowerCase().trim();
+    const searchDescription = (args.description || "").toLowerCase().trim();
+
+    for (const tx of allTransactions) {
+      let matchScore = 0;
+
+      // Exact merchant match
+      if (searchMerchant && tx.merchant) {
+        const txMerchant = tx.merchant.toLowerCase().trim();
+        if (txMerchant === searchMerchant) {
+          matchScore += 10;
+        } else if (txMerchant.includes(searchMerchant) || searchMerchant.includes(txMerchant)) {
+          matchScore += 5;
+        }
+      }
+
+      // Description match
+      if (searchDescription && tx.description) {
+        const txDescription = tx.description.toLowerCase().trim();
+        if (txDescription === searchDescription) {
+          matchScore += 10;
+        } else if (txDescription.includes(searchDescription) || searchDescription.includes(txDescription)) {
+          matchScore += 5;
+        }
+      }
+
+      // Merchant name match (for mock transactions)
+      if (searchMerchant && tx.merchantName) {
+        const txMerchantName = tx.merchantName.toLowerCase().trim();
+        if (txMerchantName === searchMerchant) {
+          matchScore += 10;
+        } else if (txMerchantName.includes(searchMerchant) || searchMerchant.includes(txMerchantName)) {
+          matchScore += 5;
+        }
+      }
+
+      if (matchScore > 0) {
+        similar.push({ transaction: tx, matchScore });
+      }
+    }
+
+    // Sort by match score (highest first) and recency
+    similar.sort((a, b) => {
+      if (b.matchScore !== a.matchScore) {
+        return b.matchScore - a.matchScore;
+      }
+      const dateA = a.transaction.dateTimestamp || new Date(a.transaction.date).getTime();
+      const dateB = b.transaction.dateTimestamp || new Date(b.transaction.date).getTime();
+      return dateB - dateA;
+    });
+
+    // Return most recent similar transaction (highest match score)
+    const limit = args.limit || 1;
+    return similar.slice(0, limit).map((item) => item.transaction);
   },
 });

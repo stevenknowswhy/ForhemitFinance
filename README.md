@@ -34,7 +34,14 @@ A modern, full-stack financial management application built with Next.js, Convex
 - ✅ **Multi-Filter System**: Filter by income/expense, category, date range, and sort by amount
 - ✅ **Responsive Account Cards**: Multi-column grid layout that adapts to screen size
 - ✅ **Financial Charts**: Beautiful Recharts visualizations for financial data analysis
-- ✅ **Analytics Page**: Dedicated page for advanced charts and financial insights
+- ✅ **Analytics Page with Tabbed Navigation**: 
+  - **Business Tab**: Analytics filtered to business-tagged accounts and transactions only
+  - **Personal Tab**: Analytics filtered to personal-tagged financial data only
+  - **Blended Tab**: Combined view with toggle controls to show/hide business or personal data
+  - Progress indicators showing classification completion percentage
+  - Local storage to remember last viewed tab
+  - Side-by-side comparison cards in blended view
+  - Business-specific KPIs: Burn Rate, Runway calculation
 - ✅ **Theme Toggle**: Easy switching between light, dark, and system themes
 
 ## 🏗️ Architecture
@@ -195,10 +202,24 @@ The app will be available at `http://localhost:3000`
 - Available balance tracking
 
 ### Financial Insights (Analytics Page)
-- **Cash Flow Chart**: Daily cash flow over time
-- **Spending by Category**: Pie chart of spending distribution
-- **Income vs Expenses**: Monthly comparison
-- **Monthly Trends**: Net cash flow and balance trends
+- **Tabbed Navigation**: Switch between Business, Personal, and Blended views
+- **Business Analytics**: 
+  - Business-only KPIs (Revenue, Expenses, Net Cash Flow, Burn Rate)
+  - Runway calculation (months until $0 at current burn rate)
+  - Business category breakdowns
+  - All charts filtered to business transactions
+- **Personal Analytics**:
+  - Personal-only KPIs (Income, Spending, Net Cash Flow, Avg Daily Spending)
+  - Personal category breakdowns
+  - All charts filtered to personal transactions
+- **Blended Analytics**:
+  - Combined financial picture across all accounts
+  - Toggle controls to show/hide business or personal data
+  - Side-by-side comparison cards
+  - Unified charts with visual indicators
+- **Charts**: Cash Flow, Spending by Category, Income vs Expenses, Monthly Trends
+- **Progress Indicators**: Shows classification completion percentage on tabs
+- **Persistent State**: Remembers last viewed tab via localStorage
 
 ### Transaction Management
 - **Search Bar**: Live search across all transaction fields
@@ -249,7 +270,8 @@ pnpm test
 - `apps/web/app/dashboard/components/AddTransactionModal.tsx` - Transaction entry form
 - `apps/web/app/dashboard/components/ApprovalQueue.tsx` - Pending entries review
 - `apps/web/app/dashboard/components/EntryPreview.tsx` - AI entry preview component
-- `apps/web/app/analytics/page.tsx` - Advanced charts and insights
+- `apps/web/app/analytics/page.tsx` - Tabbed analytics (Business/Personal/Blended views)
+- `apps/web/app/dashboard/utils/chartData.ts` - Chart data utilities with filtering support
 - `apps/web/app/transactions/page.tsx` - Transaction list and management
 
 ### Backend
@@ -269,7 +291,7 @@ pnpm test
 
 ## 🎯 Project Status
 
-**Phase 1 MVP: ~70% Complete**
+**Phase 1 MVP: ~80% Complete**
 
 ### ✅ Completed
 - Infrastructure (Next.js, Convex, Clerk, schema)
@@ -278,15 +300,24 @@ pnpm test
 - Approval workflow UI
 - Receipt upload and management
 - Transaction search and filtering
-- Analytics page with charts
+- **Analytics page with tabbed navigation (Business/Personal/Blended)**
+- **Business vs Personal classification and filtering**
+- **Client-side analytics filtering (server-side ready when Convex syncs)**
+- Personal/Business tagging UI
+- Chart data utilities with filtering support
 
 ### 🚧 In Progress
-- Personal/Business tagging UI
 - Real Plaid integration (currently using mock data)
-- Mobile swipe-to-approve gestures
+- Server-side filtered analytics queries (ready, needs Convex sync)
+- Mobile swipe-to-approve gestures (nice-to-have)
 
 ### 📋 Roadmap
-See [ROADMAP.md](./ROADMAP.md) for detailed feature roadmap and [PHASE_1_PROGRESS_CHECKLIST.md](./PHASE_1_PROGRESS_CHECKLIST.md) for current progress.
+See [ROADMAP.md](./ROADMAP.md) for detailed feature roadmap including:
+- Phase 3: Multiple businesses per user
+- Phase 3: Teams & multi-user collaboration
+- Phase 3: Super admin panel with user and subscription management
+
+See [PHASE_1_PROGRESS_CHECKLIST.md](./PHASE_1_PROGRESS_CHECKLIST.md) for detailed progress tracking.
 
 ## 📄 License
 

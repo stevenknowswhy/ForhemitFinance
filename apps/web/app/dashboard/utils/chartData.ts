@@ -12,6 +12,7 @@ interface Transaction {
   merchantName?: string;
   merchant?: string;
   description?: string;
+  isBusiness?: boolean;
 }
 
 interface Analytics {
@@ -26,12 +27,22 @@ interface Analytics {
 
 /**
  * Generate cash flow data from transactions (last 30 days)
+ * Optionally filter by business/personal classification
  */
 export function generateCashFlowData(
-  transactions: Transaction[] | undefined
+  transactions: Transaction[] | undefined,
+  filterType?: "business" | "personal" | "all"
 ): Array<{ date: string; income: number; expenses: number; net: number }> {
   if (!transactions || transactions.length === 0) {
     return [];
+  }
+
+  // Filter transactions if needed
+  let filteredTransactions = transactions;
+  if (filterType === "business") {
+    filteredTransactions = transactions.filter(t => t.isBusiness === true);
+  } else if (filterType === "personal") {
+    filteredTransactions = transactions.filter(t => t.isBusiness === false);
   }
 
   const now = new Date();
@@ -47,7 +58,7 @@ export function generateCashFlowData(
   }
 
   // Process transactions
-  transactions.forEach((transaction) => {
+  filteredTransactions.forEach((transaction) => {
     const date = new Date(
       transaction.dateTimestamp || transaction.date
     );
@@ -88,12 +99,22 @@ export function generateCategoryData(
 
 /**
  * Generate monthly income vs expenses data (last 6 months)
+ * Optionally filter by business/personal classification
  */
 export function generateMonthlyIncomeVsExpenses(
-  transactions: Transaction[] | undefined
+  transactions: Transaction[] | undefined,
+  filterType?: "business" | "personal" | "all"
 ): Array<{ month: string; income: number; expenses: number }> {
   if (!transactions || transactions.length === 0) {
     return [];
+  }
+
+  // Filter transactions if needed
+  let filteredTransactions = transactions;
+  if (filterType === "business") {
+    filteredTransactions = transactions.filter(t => t.isBusiness === true);
+  } else if (filterType === "personal") {
+    filteredTransactions = transactions.filter(t => t.isBusiness === false);
   }
 
   const now = new Date();
@@ -110,7 +131,7 @@ export function generateMonthlyIncomeVsExpenses(
   }
 
   // Process transactions
-  transactions.forEach((transaction) => {
+  filteredTransactions.forEach((transaction) => {
     const date = new Date(
       transaction.dateTimestamp || transaction.date
     );
@@ -137,13 +158,31 @@ export function generateMonthlyIncomeVsExpenses(
 
 /**
  * Generate monthly trend data (net cash flow and balance)
+ * Optionally filter by business/personal classification
  */
 export function generateMonthlyTrends(
   transactions: Transaction[] | undefined,
-  accounts: Array<{ balance?: number }> | undefined
+  accounts: Array<{ balance?: number; isBusiness?: boolean }> | undefined,
+  filterType?: "business" | "personal" | "all"
 ): Array<{ month: string; netCashFlow: number; balance: number }> {
   if (!transactions || transactions.length === 0) {
     return [];
+  }
+
+  // Filter transactions if needed
+  let filteredTransactions = transactions;
+  if (filterType === "business") {
+    filteredTransactions = transactions.filter(t => t.isBusiness === true);
+  } else if (filterType === "personal") {
+    filteredTransactions = transactions.filter(t => t.isBusiness === false);
+  }
+
+  // Filter accounts if needed
+  let filteredAccounts = accounts;
+  if (filterType === "business") {
+    filteredAccounts = accounts?.filter(a => a.isBusiness === true);
+  } else if (filterType === "personal") {
+    filteredAccounts = accounts?.filter(a => a.isBusiness === false);
   }
 
   const now = new Date();
@@ -154,7 +193,7 @@ export function generateMonthlyTrends(
 
   // Calculate total balance
   const totalBalance =
-    accounts?.reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+    filteredAccounts?.reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
 
   // Initialize last 6 months
   for (let i = 5; i >= 0; i--) {
@@ -167,7 +206,7 @@ export function generateMonthlyTrends(
   }
 
   // Process transactions backwards to calculate running balance
-  const sortedTransactions = [...transactions].sort(
+  const sortedTransactions = [...filteredTransactions].sort(
     (a, b) =>
       new Date(b.dateTimestamp || b.date).getTime() -
       new Date(a.dateTimestamp || a.date).getTime()

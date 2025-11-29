@@ -1,45 +1,117 @@
-// @ts-nocheck
 /**
  * Plaid integration for bank account connections and transaction syncing
- * Uses the Plaid Node.js SDK
+ * Uses the Plaid Node.js SDK (optional - falls back to mock if not available)
+ * 
+ * Note: This file uses dynamic imports to avoid bundling issues with Convex.
+ * The Plaid SDK will be loaded at runtime if available.
  */
 
 import { v } from "convex/values";
 import { action, mutation, query, internalMutation } from "./_generated/server";
 import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } from "plaid";
+
+// Plaid types - will be loaded dynamically at runtime
+type PlaidApiType = any;
+type PlaidEnvironmentsType = any;
+type ProductsType = any;
+type CountryCodeType = any;
+type ConfigurationType = any;
+
+let PlaidApi: PlaidApiType | undefined;
+let PlaidEnvironments: PlaidEnvironmentsType | undefined;
+let Products: ProductsType | undefined;
+let CountryCode: CountryCodeType | undefined;
+let Configuration: ConfigurationType | undefined;
+
+// Lazy load Plaid SDK - only when needed
+async function loadPlaidSDK(): Promise<{
+  PlaidApi: any;
+  PlaidEnvironments: any;
+  Products: any;
+  CountryCode: any;
+  Configuration: any;
+} | null> {
+  // If already loaded, return the SDK
+  if (PlaidApi && PlaidEnvironments && Configuration) {
+    return {
+      PlaidApi,
+      PlaidEnvironments,
+      Products: Products!,
+      CountryCode: CountryCode!,
+      Configuration,
+    };
+  }
+  
+  try {
+    // Dynamic import that won't fail at bundle time
+    const plaid = await import("plaid");
+    PlaidApi = plaid.PlaidApi;
+    PlaidEnvironments = plaid.PlaidEnvironments;
+    Products = plaid.Products;
+    CountryCode = plaid.CountryCode;
+    Configuration = plaid.Configuration;
+    
+    return {
+      PlaidApi,
+      PlaidEnvironments,
+      Products,
+      CountryCode,
+      Configuration,
+    };
+  } catch (e) {
+    // Plaid not available - will use mock mode
+    console.warn("Plaid SDK not available - using mock mode");
+    return null;
+  }
+}
 
 /**
  * Get Plaid client configuration
+ * Loads Plaid SDK dynamically if available
  */
-function getPlaidClient() {
+async function getPlaidClient() {
   const clientId = process.env.PLAID_CLIENT_ID;
   const secret = process.env.PLAID_SECRET;
   const env = process.env.PLAID_ENV || "sandbox";
 
   if (!clientId || !secret) {
-    throw new Error("Plaid credentials not configured. Set PLAID_CLIENT_ID and PLAID_SECRET in environment variables.");
+    // Return null to indicate mock mode should be used
+    return null;
   }
 
-  const configuration = new Configuration({
-    basePath: PlaidEnvironments[env as keyof typeof PlaidEnvironments],
-    baseOptions: {
-      headers: {
-        "PLAID-CLIENT-ID": clientId,
-        "PLAID-SECRET": secret,
-      },
-    },
-  });
+  // Try to load Plaid SDK dynamically
+  const plaidSDK = await loadPlaidSDK();
+  
+  if (!plaidSDK) {
+    // Plaid SDK not available
+    return null;
+  }
 
-  return new PlaidApi(configuration);
+  try {
+    const { Configuration, PlaidApi, PlaidEnvironments } = plaidSDK;
+    const configuration = new Configuration({
+      basePath: PlaidEnvironments[env as keyof typeof PlaidEnvironments],
+      baseOptions: {
+        headers: {
+          "PLAID-CLIENT-ID": clientId,
+          "PLAID-SECRET": secret,
+        },
+      },
+    });
+
+    return new PlaidApi(configuration);
+  } catch (error) {
+    console.error("Error creating Plaid client:", error);
+    return null;
+  }
 }
 
 /**
  * Create a Plaid Link token for the frontend
  * This token is used to initialize Plaid Link
  */
-export const createLinkToken = action({
+export const createLinkToken: ReturnType<typeof action> = action({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -52,7 +124,11 @@ export const createLinkToken = action({
       throw new Error("User not found");
     }
 
-    const plaidClient = getPlaidClient();
+    const plaidClient = await getPlaidClient();
+
+    if (!plaidClient) {
+      throw new Error("Plaid credentials not configured. Please set PLAID_CLIENT_ID and PLAID_SECRET environment variables.");
+    }
 
     try {
       const request = {
@@ -69,7 +145,8 @@ export const createLinkToken = action({
       return { linkToken: response.data.link_token };
     } catch (error: any) {
       console.error("Error creating Plaid link token:", error);
-      throw new Error(`Failed to create link token: ${error.message}`);
+      const errorMessage = error.response?.data?.error_message || error.message || "Unknown error";
+      throw new Error(`Failed to create link token: ${errorMessage}`);
     }
   },
 });
@@ -95,7 +172,11 @@ export const exchangePublicToken: ReturnType<typeof action> = action({
       throw new Error("User not found");
     }
 
-    const plaidClient = getPlaidClient();
+    const plaidClient = await getPlaidClient();
+
+    if (!plaidClient) {
+      throw new Error("Plaid credentials not configured. Please set PLAID_CLIENT_ID and PLAID_SECRET environment variables.");
+    }
 
     try {
       // Exchange public token for access token
@@ -122,7 +203,8 @@ export const exchangePublicToken: ReturnType<typeof action> = action({
       return { institutionId, success: true };
     } catch (error: any) {
       console.error("Error exchanging public token:", error);
-      throw new Error(`Failed to connect bank: ${error.message}`);
+      const errorMessage = error.response?.data?.error_message || error.message || "Unknown error";
+      throw new Error(`Failed to connect bank: ${errorMessage}`);
     }
   },
 });
@@ -170,7 +252,7 @@ export const storeInstitution = mutation({
  * Sync accounts from Plaid
  * Creates/updates account records
  */
-export const syncAccounts = action({
+export const syncAccounts: ReturnType<typeof action> = action({
   args: {
     institutionId: v.id("institutions"),
   },
@@ -183,7 +265,11 @@ export const syncAccounts = action({
       throw new Error("Institution not found");
     }
 
-    const plaidClient = getPlaidClient();
+    const plaidClient = await getPlaidClient();
+
+    if (!plaidClient) {
+      throw new Error("Plaid credentials not configured. Please set PLAID_CLIENT_ID and PLAID_SECRET environment variables.");
+    }
 
     try {
       // Get accounts from Plaid
@@ -220,6 +306,7 @@ export const syncAccounts = action({
       return { success: true, accountCount: plaidAccounts.length };
     } catch (error: any) {
       console.error("Error syncing accounts:", error);
+      const errorMessage = error.response?.data?.error_message || error.message || "Unknown error";
       
       // Update institution status to error
       await ctx.runMutation(api.plaid.updateInstitutionStatus, {
@@ -227,7 +314,7 @@ export const syncAccounts = action({
         status: "error",
       });
 
-      throw new Error(`Failed to sync accounts: ${error.message}`);
+      throw new Error(`Failed to sync accounts: ${errorMessage}`);
     }
   },
 });
@@ -288,7 +375,7 @@ export const upsertAccount = mutation({
  * Sync transactions from Plaid
  * Fetches new transactions and creates proposed entries
  */
-export const syncTransactions = action({
+export const syncTransactions: ReturnType<typeof action> = action({
   args: {
     institutionId: v.id("institutions"),
   },
@@ -307,7 +394,11 @@ export const syncTransactions = action({
     startDate.setDate(startDate.getDate() - 1); // Add 1 day buffer
     const endDate = new Date();
 
-    const plaidClient = getPlaidClient();
+    const plaidClient = await getPlaidClient();
+
+    if (!plaidClient) {
+      throw new Error("Plaid credentials not configured. Please set PLAID_CLIENT_ID and PLAID_SECRET environment variables.");
+    }
 
     try {
       // Get user's accounts for this institution
@@ -319,13 +410,33 @@ export const syncTransactions = action({
         throw new Error("No accounts found for institution");
       }
 
-      // Fetch transactions from Plaid
-      const transactionsResponse = await plaidClient.transactionsGet({
-        access_token: institution.accessTokenEncrypted,
-        start_date: startDate.toISOString().split("T")[0],
-        end_date: endDate.toISOString().split("T")[0],
-        account_ids: accounts.map((a) => a.plaidAccountId).filter((id): id is string => !!id),
-      } as any);
+      // Fetch transactions from Plaid with retry logic
+      let transactionsResponse;
+      let retries = 3;
+      let lastError: any;
+
+      while (retries > 0) {
+        try {
+          transactionsResponse = await plaidClient.transactionsGet({
+            access_token: institution.accessTokenEncrypted,
+            start_date: startDate.toISOString().split("T")[0],
+            end_date: endDate.toISOString().split("T")[0],
+            account_ids: accounts.map((a) => a.plaidAccountId).filter((id): id is string => !!id),
+          } as any);
+          break; // Success, exit retry loop
+        } catch (error: any) {
+          lastError = error;
+          retries--;
+          if (retries > 0) {
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
+          }
+        }
+      }
+
+      if (!transactionsResponse) {
+        throw lastError || new Error("Failed to fetch transactions after retries");
+      }
 
       const plaidTransactions = transactionsResponse.data.transactions;
       let importedCount = 0;
@@ -371,6 +482,7 @@ export const syncTransactions = action({
       return { success: true, count: importedCount, total: plaidTransactions.length };
     } catch (error: any) {
       console.error("Error syncing transactions:", error);
+      const errorMessage = error.response?.data?.error_message || error.message || "Unknown error";
       
       // Update institution status to error
       await ctx.runMutation(api.plaid.updateInstitutionStatus, {
@@ -378,7 +490,7 @@ export const syncTransactions = action({
         status: "error",
       });
 
-      throw new Error(`Failed to sync transactions: ${error.message}`);
+      throw new Error(`Failed to sync transactions: ${errorMessage}`);
     }
   },
 });
@@ -810,6 +922,220 @@ export const getMockTransactionAnalytics = query({
       topCategories,
       dailySpending,
       averageDailySpending: Math.round((totalSpent / days) * 100) / 100,
+    };
+  },
+});
+
+/**
+ * Get transaction analytics filtered by business/personal classification
+ */
+export const getFilteredTransactionAnalytics = query({
+  args: {
+    days: v.optional(v.number()),
+    filterType: v.optional(v.union(v.literal("business"), v.literal("personal"), v.literal("all"))),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user) {
+      return null;
+    }
+
+    const days = args.days || 30;
+    const startDate = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const filterType = args.filterType || "all";
+
+    const allTransactions = await ctx.db
+      .query("transactions_raw")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    // Filter by date
+    let transactions = allTransactions.filter(t => {
+      const transactionDate = t.dateTimestamp || new Date(t.date).getTime();
+      return transactionDate >= startDate;
+    });
+
+    // Filter by business/personal classification
+    if (filterType === "business") {
+      transactions = transactions.filter(t => t.isBusiness === true);
+    } else if (filterType === "personal") {
+      transactions = transactions.filter(t => t.isBusiness === false);
+    }
+    // "all" includes everything (no filter)
+
+    // Calculate totals
+    const totalSpent = transactions
+      .filter(t => t.amount < 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    const totalIncome = transactions
+      .filter(t => t.amount > 0)
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    // Group by category
+    const byCategory: Record<string, number> = {};
+    transactions.forEach(t => {
+      if (t.amount < 0) {
+        const category = t.categoryName || (t.category && t.category[0]) || "Uncategorized";
+        byCategory[category] = (byCategory[category] || 0) + Math.abs(t.amount);
+      }
+    });
+
+    // Top spending categories
+    const topCategories = Object.entries(byCategory)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([category, amount]) => ({ category, amount }));
+
+    // Daily spending trend
+    const dailySpending: Record<string, number> = {};
+    transactions.forEach(t => {
+      if (t.amount < 0) {
+        const date = new Date(t.dateTimestamp || new Date(t.date).getTime()).toLocaleDateString();
+        dailySpending[date] = (dailySpending[date] || 0) + Math.abs(t.amount);
+      }
+    });
+
+    return {
+      totalSpent: Math.round(totalSpent * 100) / 100,
+      totalIncome: Math.round(totalIncome * 100) / 100,
+      netCashFlow: Math.round((totalIncome - totalSpent) * 100) / 100,
+      transactionCount: transactions.length,
+      topCategories,
+      dailySpending,
+      averageDailySpending: Math.round((totalSpent / days) * 100) / 100,
+      filterType,
+    };
+  },
+});
+
+/**
+ * Get transactions filtered by business/personal classification
+ */
+export const getFilteredTransactions = query({
+  args: {
+    limit: v.optional(v.number()),
+    filterType: v.optional(v.union(v.literal("business"), v.literal("personal"), v.literal("all"))),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user) {
+      return [];
+    }
+
+    let transactions = await ctx.db
+      .query("transactions_raw")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    // Filter by business/personal classification
+    const filterType = args.filterType || "all";
+    if (filterType === "business") {
+      transactions = transactions.filter(t => t.isBusiness === true);
+    } else if (filterType === "personal") {
+      transactions = transactions.filter(t => t.isBusiness === false);
+    }
+
+    // Sort by date (newest first)
+    transactions.sort((a, b) => {
+      const dateA = a.dateTimestamp || new Date(a.date).getTime();
+      const dateB = b.dateTimestamp || new Date(b.date).getTime();
+      return dateB - dateA;
+    });
+
+    // Apply limit
+    if (args.limit) {
+      transactions = transactions.slice(0, args.limit);
+    }
+
+    return transactions;
+  },
+});
+
+/**
+ * Get account classification statistics
+ */
+export const getAccountClassificationStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user) {
+      return null;
+    }
+
+    const accounts = await ctx.db
+      .query("accounts")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const transactions = await ctx.db
+      .query("transactions_raw")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const totalAccounts = accounts.length;
+    const classifiedAccounts = accounts.filter(a => a.isBusiness !== undefined).length;
+    const businessAccounts = accounts.filter(a => a.isBusiness === true).length;
+    const personalAccounts = accounts.filter(a => a.isBusiness === false).length;
+
+    const totalTransactions = transactions.length;
+    const classifiedTransactions = transactions.filter(t => t.isBusiness !== undefined).length;
+    const businessTransactions = transactions.filter(t => t.isBusiness === true).length;
+    const personalTransactions = transactions.filter(t => t.isBusiness === false).length;
+
+    const accountClassificationPercent = totalAccounts > 0 
+      ? Math.round((classifiedAccounts / totalAccounts) * 100)
+      : 0;
+
+    const transactionClassificationPercent = totalTransactions > 0
+      ? Math.round((classifiedTransactions / totalTransactions) * 100)
+      : 0;
+
+    return {
+      accounts: {
+        total: totalAccounts,
+        classified: classifiedAccounts,
+        business: businessAccounts,
+        personal: personalAccounts,
+        classificationPercent: accountClassificationPercent,
+      },
+      transactions: {
+        total: totalTransactions,
+        classified: classifiedTransactions,
+        business: businessTransactions,
+        personal: personalTransactions,
+        classificationPercent: transactionClassificationPercent,
+      },
+      overallClassificationPercent: Math.round(
+        (accountClassificationPercent + transactionClassificationPercent) / 2
+      ),
     };
   },
 });

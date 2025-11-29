@@ -5,6 +5,7 @@ import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { StripeProvider } from "./components/StripeProvider";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,7 +35,10 @@ export default function RootLayout({
             storageKey="ez-financial-theme"
           >
             <StripeProvider>
-              <ConvexClientProvider>{children}</ConvexClientProvider>
+              <ConvexClientProvider>
+                {children}
+                <Toaster />
+              </ConvexClientProvider>
             </StripeProvider>
           </ThemeProvider>
         </body>

@@ -34,6 +34,47 @@ export default defineSchema({
       ),
       notificationsEnabled: v.boolean(),
       darkMode: v.optional(v.boolean()),
+      // App Display Settings
+      numberFormat: v.optional(v.union(v.literal("us"), v.literal("eu"))),
+      timezone: v.optional(v.string()),
+      weekStart: v.optional(v.union(v.literal("sunday"), v.literal("monday"))),
+      defaultHomeTab: v.optional(v.union(
+        v.literal("dashboard"),
+        v.literal("transactions"),
+        v.literal("analytics")
+      )),
+      // Accounting Preferences
+      accountingMethod: v.optional(v.union(v.literal("cash"), v.literal("accrual"))),
+      businessEntityType: v.optional(v.union(
+        v.literal("sole_proprietorship"),
+        v.literal("llc"),
+        v.literal("s_corp"),
+        v.literal("c_corp"),
+        v.literal("partnership"),
+        v.literal("nonprofit")
+      )),
+      // Notification Preferences
+      transactionAlerts: v.optional(v.boolean()),
+      weeklyBurnRate: v.optional(v.boolean()),
+      monthlyCashFlow: v.optional(v.boolean()),
+      anomalyAlerts: v.optional(v.boolean()),
+      pushNotifications: v.optional(v.boolean()),
+      emailNotifications: v.optional(v.boolean()),
+      smsAlerts: v.optional(v.boolean()),
+      // Privacy Settings
+      optOutAI: v.optional(v.boolean()),
+      allowTraining: v.optional(v.boolean()),
+      hideBalances: v.optional(v.boolean()),
+      optOutAnalytics: v.optional(v.boolean()),
+      // AI Personalization
+      aiStrictness: v.optional(v.number()), // 0-100
+      showExplanations: v.optional(v.boolean()),
+      aiTone: v.optional(v.union(
+        v.literal("friendly"),
+        v.literal("professional"),
+        v.literal("technical")
+      )),
+      confidenceThreshold: v.optional(v.number()), // 0-100
     }),
     createdAt: v.number(),
   })
@@ -102,6 +143,7 @@ export default defineSchema({
     plaidCategory: v.optional(v.array(v.string())),
     description: v.string(),
     isPending: v.boolean(),
+    isBusiness: v.optional(v.boolean()),
     source: v.union(
       v.literal("plaid"),
       v.literal("manual"),
@@ -109,6 +151,7 @@ export default defineSchema({
       v.literal("mock") // Mock transactions
     ),
     receiptUrl: v.optional(v.string()),
+    receiptIds: v.optional(v.array(v.id("receipts"))),
     // Mock transaction fields
     transactionId: v.optional(v.string()), // Unique transaction ID for mock
     transactionType: v.optional(v.union(
@@ -201,7 +244,16 @@ export default defineSchema({
   // Receipts
   receipts: defineTable({
     userId: v.id("users"),
-    storageUrl: v.string(), // S3/R2 URL
+    transactionId: v.optional(v.id("transactions_raw")),
+    // UploadThing / storage metadata
+    fileUrl: v.string(),         // public or signed URL from UploadThing
+    fileKey: v.string(),         // UploadThing file key (for future deletes)
+    originalFilename: v.string(),
+    mimeType: v.string(),
+    sizeBytes: v.number(),
+    // Legacy field for backward compatibility
+    storageUrl: v.optional(v.string()), // Deprecated: use fileUrl instead
+    // Optional useful extras
     ocrData: v.optional(v.object({
       merchant: v.optional(v.string()),
       amount: v.optional(v.number()),
@@ -215,10 +267,11 @@ export default defineSchema({
       tip: v.optional(v.number()),
       confidence: v.number(),
     })),
-    matchedTransactionId: v.optional(v.id("transactions_raw")),
+    notes: v.optional(v.string()),
     uploadedAt: v.number(),
   })
-    .index("by_user", ["userId"]),
+    .index("by_user", ["userId"])
+    .index("by_transaction", ["transactionId"]),
 
   // Financial goals
   goals: defineTable({
@@ -281,5 +334,131 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_period", ["userId", "period"]),
+
+  // Business Profiles
+  business_profiles: defineTable({
+    userId: v.id("users"),
+    // Core Business Identity
+    legalBusinessName: v.optional(v.string()),
+    dbaTradeName: v.optional(v.string()),
+    einTaxId: v.optional(v.string()),
+    entityType: v.optional(v.string()),
+    filingState: v.optional(v.string()),
+    dateOfIncorporation: v.optional(v.string()),
+    naicsCode: v.optional(v.string()),
+    businessCategory: v.optional(v.string()),
+    businessStructure: v.optional(v.string()),
+    // Business Address & Contact
+    registeredAddress: v.optional(v.string()),
+    headquartersAddress: v.optional(v.string()),
+    mailingAddress: v.optional(v.string()),
+    businessPhone: v.optional(v.string()),
+    businessEmail: v.optional(v.string()),
+    businessWebsite: v.optional(v.string()),
+    // Compliance & Verification IDs
+    dunsNumber: v.optional(v.string()),
+    samUei: v.optional(v.string()),
+    cageCode: v.optional(v.string()),
+    stateBusinessLicense: v.optional(v.string()),
+    localBusinessLicense: v.optional(v.string()),
+    resellersPermit: v.optional(v.string()),
+    stateTaxRegistrationId: v.optional(v.string()),
+    // Financial Profile
+    primaryBankName: v.optional(v.string()),
+    merchantProvider: v.optional(v.string()),
+    averageMonthlyRevenue: v.optional(v.number()),
+    fundingStatus: v.optional(v.string()),
+    stageOfBusiness: v.optional(v.string()),
+    // Ownership & Leadership
+    owners: v.optional(v.array(v.object({
+      name: v.string(),
+      ownershipPercentage: v.optional(v.string()),
+      linkedIn: v.optional(v.string()),
+      role: v.optional(v.string()),
+    }))),
+    usesRegisteredAgent: v.optional(v.boolean()),
+    registeredAgent: v.optional(v.object({
+      name: v.optional(v.string()),
+      company: v.optional(v.string()),
+      street: v.optional(v.string()),
+      city: v.optional(v.string()),
+      state: v.optional(v.string()),
+      zip: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      email: v.optional(v.string()),
+    })),
+    // Operational Details
+    numberOfEmployees: v.optional(v.number()),
+    independentContractors: v.optional(v.number()),
+    workModel: v.optional(v.union(
+      v.literal("remote"),
+      v.literal("hybrid"),
+      v.literal("on_site")
+    )),
+    businessDescription: v.optional(v.string()),
+    products: v.optional(v.array(v.string())),
+    // Business Demographics
+    womanOwned: v.optional(v.boolean()),
+    minorityOwned: v.optional(v.boolean()),
+    veteranOwned: v.optional(v.boolean()),
+    lgbtqOwned: v.optional(v.boolean()),
+    dbeStatus: v.optional(v.boolean()),
+    hubzoneQualification: v.optional(v.boolean()),
+    ruralUrban: v.optional(v.union(
+      v.literal("rural"),
+      v.literal("urban"),
+      v.literal("suburban")
+    )),
+    // Certifications
+    cert8a: v.optional(v.boolean()),
+    certWosb: v.optional(v.boolean()),
+    certMbe: v.optional(v.boolean()),
+    isoCertifications: v.optional(v.string()),
+    gdprCompliant: v.optional(v.boolean()),
+    ccpaCompliant: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"]),
+
+  // User Addresses
+  addresses: defineTable({
+    userId: v.id("users"),
+    type: v.union(
+      v.literal("residential"),
+      v.literal("business")
+    ),
+    streetAddress: v.string(),
+    addressLine2: v.optional(v.string()),
+    city: v.string(),
+    state: v.string(),
+    zipCode: v.string(),
+    isDefault: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_type", ["userId", "type"]),
+
+  // Professional Contacts
+  professional_contacts: defineTable({
+    userId: v.id("users"),
+    contactType: v.string(),
+    category: v.optional(v.string()),
+    name: v.string(),
+    firmCompany: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    website: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    isPrimary: v.optional(v.boolean()),
+    tags: v.optional(v.array(v.string())),
+    fileUrl: v.optional(v.string()), // For uploaded documents
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_type", ["userId", "contactType"])
+    .index("by_user_category", ["userId", "category"]),
 });
 
