@@ -210,6 +210,21 @@ export const createRaw = mutation({
     category: v.optional(v.array(v.string())),
     isPending: v.boolean(),
     isBusiness: v.optional(v.boolean()),
+    entryMode: v.optional(v.union(
+      v.literal("simple"),
+      v.literal("advanced")
+    )),
+    debitAccountId: v.optional(v.id("accounts")),
+    creditAccountId: v.optional(v.id("accounts")),
+    lineItems: v.optional(v.array(v.object({
+      description: v.string(),
+      category: v.optional(v.string()),
+      amount: v.number(),
+      tax: v.optional(v.number()),
+      tip: v.optional(v.number()),
+      debitAccountId: v.optional(v.id("accounts")),
+      creditAccountId: v.optional(v.id("accounts")),
+    }))),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -232,6 +247,10 @@ export const createRaw = mutation({
       throw new Error("Account not found or unauthorized");
     }
 
+    // Parse date string (YYYY-MM-DD) to create timestamp at UTC midnight
+    // This provides consistent sorting/filtering while preserving the date string
+    const dateTimestamp = new Date(args.date + "T00:00:00Z").getTime();
+
     const transactionData: any = {
       userId: user._id,
       accountId: args.accountId,
@@ -239,6 +258,7 @@ export const createRaw = mutation({
       amount: args.amount,
       currency: "USD", // Default, could be from account
       date: args.date,
+      dateTimestamp: dateTimestamp,
       merchant: args.merchant,
       description: args.description,
       category: args.category,
@@ -250,6 +270,24 @@ export const createRaw = mutation({
     // Only include isBusiness if it's explicitly set (not undefined)
     if (args.isBusiness !== undefined) {
       transactionData.isBusiness = args.isBusiness;
+    }
+
+    // Include entry mode and line items if provided
+    if (args.entryMode !== undefined) {
+      transactionData.entryMode = args.entryMode;
+    }
+
+    // Include double entry accounts for simple mode
+    if (args.debitAccountId !== undefined) {
+      transactionData.debitAccountId = args.debitAccountId;
+    }
+
+    if (args.creditAccountId !== undefined) {
+      transactionData.creditAccountId = args.creditAccountId;
+    }
+
+    if (args.lineItems !== undefined && args.lineItems.length > 0) {
+      transactionData.lineItems = args.lineItems;
     }
 
     const transactionId = await ctx.db.insert("transactions_raw", transactionData);
@@ -458,7 +496,11 @@ export const updateTransaction = mutation({
     // Build update object with only provided fields
     const updateData: any = {};
     if (args.amount !== undefined) updateData.amount = args.amount;
-    if (args.date !== undefined) updateData.date = args.date;
+    if (args.date !== undefined) {
+      updateData.date = args.date;
+      // Update dateTimestamp when date is changed
+      updateData.dateTimestamp = new Date(args.date + "T00:00:00Z").getTime();
+    }
     if (args.merchant !== undefined) updateData.merchant = args.merchant;
     if (args.description !== undefined) updateData.description = args.description;
     if (args.category !== undefined) updateData.category = args.category;
@@ -616,6 +658,121 @@ export const findSimilarTransactions = query({
 
     // Return most recent similar transaction (highest match score)
     const limit = args.limit || 1;
-    return similar.slice(0, limit).map((item) => item.transaction);
+    return similar.slice(0, limit).map((item: any) => item.transaction);
+  },
+});
+
+/**
+ * Remove Plaid transactions (called when webhook reports transactions removed)
+ */
+export const removePlaidTransactions = mutation({
+  args: {
+    plaidTransactionIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      throw new Error("Not authenticated or email not found");
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Find and mark transactions as removed
+    for (const plaidId of args.plaidTransactionIds) {
+      const transaction = await ctx.db
+        .query("transactions_raw")
+        .withIndex("by_plaid_id", (q) => q.eq("plaidTransactionId", plaidId))
+        .first();
+
+      if (transaction && transaction.userId === user._id) {
+        // Mark as removed (don't delete, keep for audit trail)
+        await ctx.db.patch(transaction._id, {
+          isRemoved: true,
+          removedAt: Date.now(),
+        });
+
+        // Also mark any associated proposed entries as removed
+        const proposedEntries = await ctx.db
+          .query("entries_proposed")
+          .withIndex("by_transaction", (q) => q.eq("transactionId", transaction._id))
+          .collect();
+
+        for (const entry of proposedEntries) {
+          if (entry.status === "pending") {
+            await ctx.db.patch(entry._id, {
+              status: "rejected",
+            });
+          }
+        }
+      }
+    }
+
+    return { success: true, removedCount: args.plaidTransactionIds.length };
+  },
+});
+
+/**
+ * Delete all transactions for the current user
+ * This will also delete associated proposed entries and receipts
+ */
+export const deleteAllTransactions = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      throw new Error("Not authenticated or email not found");
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Get all transactions for the user
+    const transactions = await ctx.db
+      .query("transactions_raw")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    let deletedCount = 0;
+
+    // Delete each transaction and its associated data
+    for (const transaction of transactions) {
+      // Delete associated proposed entries
+      const proposedEntries = await ctx.db
+        .query("entries_proposed")
+        .withIndex("by_transaction", (q) => q.eq("transactionId", transaction._id))
+        .collect();
+
+      for (const entry of proposedEntries) {
+        await ctx.db.delete(entry._id);
+      }
+
+      // Delete associated receipts
+      if (transaction.receiptIds && transaction.receiptIds.length > 0) {
+        for (const receiptId of transaction.receiptIds) {
+          await ctx.db.delete(receiptId);
+        }
+      }
+
+      // Delete the transaction
+      await ctx.db.delete(transaction._id);
+      deletedCount++;
+    }
+
+    return { success: true, deletedCount };
   },
 });

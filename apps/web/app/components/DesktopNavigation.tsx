@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Receipt, BarChart3, BookOpen, Settings } from "lucide-react";
+import { Home, Receipt, BarChart3, FileText, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/nextjs";
 import { ThemeToggle } from "./ThemeToggle";
@@ -33,9 +33,9 @@ export function DesktopNavigation() {
       icon: BarChart3,
     },
     {
-      href: "/stories",
-      label: "Stories",
-      icon: BookOpen,
+      href: "/reports",
+      label: "Reports",
+      icon: FileText,
     },
     {
       href: "/settings",
@@ -51,7 +51,7 @@ export function DesktopNavigation() {
       </div>
       
       <div className="flex items-center gap-1 flex-1">
-        {navItems.map((item) => {
+        {navItems.map((item: any) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           

@@ -13,7 +13,7 @@ export function CompletionProgress({ fields, className }: CompletionProgressProp
     const totalFields = fields.length;
     if (totalFields === 0) return 100;
 
-    const completedFields = fields.filter(field => {
+    const completedFields = fields.filter((field: any) => {
       if (field.isPlaceholder) return false;
       const value = field.value;
       if (value === null || value === undefined) return false;

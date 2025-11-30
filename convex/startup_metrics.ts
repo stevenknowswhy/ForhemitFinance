@@ -46,14 +46,14 @@ export const getBurnRate = query({
     // Get starting balance (from entry_lines)
     const startingBalance = await calculateAccountBalance(
       ctx,
-      cashAccounts.map((a) => a._id),
+      cashAccounts.map((a: any) => a._id),
       startDate.getTime()
     );
 
     // Get ending balance (current)
     const endingBalance = await calculateAccountBalance(
       ctx,
-      cashAccounts.map((a) => a._id),
+      cashAccounts.map((a: any) => a._id),
       now
     );
 
@@ -144,7 +144,7 @@ export const getTopSpendCategories = query({
 
       for (const line of lines) {
         if (line.side === "debit") {
-          const account = expenseAccounts.find((a) => a._id === line.accountId);
+          const account = expenseAccounts.find((a: any) => a._id === line.accountId);
           if (account) {
             categorySpend[account.name] =
               (categorySpend[account.name] || 0) + line.amount;

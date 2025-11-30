@@ -8,7 +8,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { CategoryData } from "../../data/mockData";
+import { CategoryData } from "@tests/mocks/data/dashboard-mock-data";
 import { ChartContainer } from "./ChartContainer";
 
 interface PieChartProps {
@@ -28,7 +28,7 @@ const COLORS = [
 ];
 
 export function PieChart({ data, title }: PieChartProps) {
-  const chartData = data.map((item) => ({
+  const chartData = data.map((item: any) => ({
     name: item.name,
     value: item.value,
     color: item.color,
@@ -74,7 +74,7 @@ export function PieChart({ data, title }: PieChartProps) {
           />
           <Legend
             formatter={(value, entry: any) => {
-              const total = chartData.reduce((sum, item) => sum + item.value, 0);
+              const total = chartData.reduce((sum: number, item: any) => sum + item.value, 0);
               const percent = ((entry.payload.value / total) * 100).toFixed(1);
               return `${value} (${percent}%)`;
             }}

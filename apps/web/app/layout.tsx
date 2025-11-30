@@ -6,6 +6,7 @@ import { ConvexClientProvider } from "./ConvexClientProvider";
 import { StripeProvider } from "./components/StripeProvider";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Toaster } from "@/components/ui/toaster";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -36,8 +37,10 @@ export default function RootLayout({
           >
             <StripeProvider>
               <ConvexClientProvider>
-                {children}
-                <Toaster />
+                <ErrorBoundary>
+                  {children}
+                  <Toaster />
+                </ErrorBoundary>
               </ConvexClientProvider>
             </StripeProvider>
           </ThemeProvider>

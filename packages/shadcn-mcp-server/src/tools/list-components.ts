@@ -142,6 +142,11 @@ export async function listComponents(
     const components: ComponentInfo[] = [];
 
     for (const componentName of componentNames) {
+      // Skip internal components
+      if (componentName.startsWith("_")) {
+        continue;
+      }
+      
       const metadata = await fetchComponentMetadata(componentName);
       
       if (metadata) {

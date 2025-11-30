@@ -31,8 +31,8 @@ export function MetricSelector({
       onMetricsChange?.(["all"]);
     } else {
       const newMetrics = selectedMetrics.includes(metric)
-        ? selectedMetrics.filter((m) => m !== metric)
-        : [...selectedMetrics.filter((m) => m !== "all"), metric];
+        ? selectedMetrics.filter((m: any) => m !== metric)
+        : [...selectedMetrics.filter((m: any) => m !== "all"), metric];
       onMetricsChange?.(newMetrics.length > 0 ? newMetrics : ["all"]);
     }
     setIsOpen(false);
@@ -67,7 +67,7 @@ export function MetricSelector({
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute top-full mt-2 z-20 bg-card border border-border rounded-lg shadow-lg min-w-[200px]">
-            {AVAILABLE_METRICS.map((metric) => {
+            {AVAILABLE_METRICS.map((metric: any) => {
               const isSelected =
                 selectedMetrics.includes(metric.value) ||
                 (metric.value === "all" &&

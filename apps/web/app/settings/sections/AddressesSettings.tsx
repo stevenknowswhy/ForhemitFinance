@@ -79,7 +79,7 @@ export function AddressesSettings({ isBusinessPlan }: AddressesSettingsProps) {
   // Load addresses from backend
   useEffect(() => {
     if (addressesData) {
-      setAddresses(addressesData.map(addr => ({
+      setAddresses(addressesData.map((addr: any) => ({
         _id: addr._id,
         id: addr._id,
         type: addr.type,
@@ -368,7 +368,7 @@ export function AddressesSettings({ isBusinessPlan }: AddressesSettingsProps) {
           </p>
         ) : (
           <div className="space-y-2">
-            {addresses.map((address) => (
+            {addresses.map((address: any) => (
               <Card key={address._id || address.id}>
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">

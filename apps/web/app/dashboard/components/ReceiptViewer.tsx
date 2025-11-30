@@ -228,7 +228,7 @@ export function ReceiptViewer({ transactionId, initialIndex = 0, onClose }: Rece
         {hasMultiple && (
           <div className="mt-4 pt-4 border-t border-neutral-700">
             <div className="flex items-center gap-2 overflow-x-auto">
-              {receipts.map((receipt, index) => {
+              {receipts.map((receipt: any, index: number) => {
                 const thumbUrl = getFileUrl(receipt);
                 const thumbIsImage = isImage(receipt);
                 

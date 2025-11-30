@@ -54,7 +54,7 @@ export function TeamSettings() {
   };
 
   const handleRemoveMember = (id: string) => {
-    setMembers(members.filter((m) => m.id !== id));
+    setMembers(members.filter((m: any) => m.id !== id));
     toast({
       title: "Member removed",
       description: "The team member has been removed.",
@@ -63,7 +63,7 @@ export function TeamSettings() {
 
   const handleChangeRole = (id: string, newRole: TeamRole) => {
     setMembers(
-      members.map((m) => (m.id === id ? { ...m, role: newRole } : m))
+      members.map((m: any) => (m.id === id ? { ...m, role: newRole } : m))
     );
     toast({
       title: "Role updated",
@@ -150,7 +150,7 @@ export function TeamSettings() {
             </p>
           ) : (
             <div className="space-y-3">
-              {members.map((member) => (
+              {members.map((member: any) => (
                 <div
                   key={member.id}
                   className="flex items-center justify-between p-3 border rounded-lg"

@@ -45,6 +45,13 @@ A modern, full-stack financial management application built with Next.js, Convex
   - Business-specific KPIs: Burn Rate, Runway calculation
 - ✅ **Theme Toggle**: Easy switching between light, dark, and system themes
 - ✅ **Business Icon Upload**: Upload and store business/website icon for branding on reports and documents
+- ✅ **Intent-First Transaction Modal**: Redesigned transaction entry with conversational, single-screen experience
+  - **4-Button Intent Selection**: Choose Business Expense, Personal Expense, Business Income, or Personal Income in one tap
+  - **Conversational Labels**: "Where did you spend this?" instead of "Vendor/Description"
+  - **Zero-Scroll Simple Mode**: Complete simple transactions in 7-9 seconds without scrolling
+  - **Progressive Reveal**: Optional features hidden behind conversational links ("Want to itemize this receipt?")
+  - **Micro-Interactions**: Field completion indicators, smooth animations, gentle feedback
+  - **Context-Aware Defaults**: Remembers last intent selection and user patterns
 
 ## 🏗️ Architecture
 
@@ -224,6 +231,11 @@ The app will be available at `http://localhost:3000`
 - **Persistent State**: Remembers last viewed tab via localStorage
 
 ### Transaction Management
+- **Intent-First Entry**: Single-screen transaction entry with 4-button intent selection
+  - Choose transaction type and business/personal in one tap
+  - Conversational labels and placeholders throughout
+  - Simple transactions completable in 7-9 seconds
+  - Optional features (itemization, receipt upload) hidden behind conversational links
 - **Search Bar**: Live search across all transaction fields
 - **Sort**: Toggle between high-to-low and low-to-high by amount
 - **Income Filter**: Show only positive transactions

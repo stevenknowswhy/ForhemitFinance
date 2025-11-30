@@ -90,7 +90,7 @@ export function ProfessionalNetworkSettings() {
   // Load contacts from backend
   useEffect(() => {
     if (contactsData) {
-      setContacts(contactsData.map(contact => ({
+      setContacts(contactsData.map((contact: any) => ({
         _id: contact._id,
         id: contact._id,
         contactType: contact.contactType,
@@ -174,6 +174,7 @@ export function ProfessionalNetworkSettings() {
 
     // Debounce the save and toast notification
     saveTimeoutRef.current[id] = setTimeout(async () => {
+      if (!contact._id) return;
       try {
         await updateContact({
           id: contact._id,
@@ -233,7 +234,7 @@ export function ProfessionalNetworkSettings() {
 
   const filteredContacts = selectedCategory === "all"
     ? contacts
-    : contacts.filter(c => c.category === selectedCategory);
+    : contacts.filter((c: any) => c.category === selectedCategory);
 
   const getContactTypeCategory = (type: string): string => {
     for (const [cat, types] of Object.entries(CONTACT_CATEGORIES)) {
@@ -291,7 +292,7 @@ export function ProfessionalNetworkSettings() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filteredContacts.map((contact) => (
+          {filteredContacts.map((contact: any) => (
             <Card key={contact._id || contact.id} className="p-6 border-2">
                 <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -303,19 +304,19 @@ export function ProfessionalNetworkSettings() {
                       <SelectValue placeholder="Select contact type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {CONTACT_CATEGORIES.finance.map(type => (
+                      {CONTACT_CATEGORIES.finance.map((type: any) => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
-                      {CONTACT_CATEGORIES.legal.map(type => (
+                      {CONTACT_CATEGORIES.legal.map((type: any) => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
-                      {CONTACT_CATEGORIES.operations.map(type => (
+                      {CONTACT_CATEGORIES.operations.map((type: any) => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
-                      {CONTACT_CATEGORIES.strategy.map(type => (
+                      {CONTACT_CATEGORIES.strategy.map((type: any) => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
-                      {CONTACT_CATEGORIES.other.map(type => (
+                      {CONTACT_CATEGORIES.other.map((type: any) => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
                     </SelectContent>

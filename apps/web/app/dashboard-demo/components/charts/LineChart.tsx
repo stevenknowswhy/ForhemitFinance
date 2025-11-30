@@ -10,7 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { TimeSeriesData } from "../../data/mockData";
+import { TimeSeriesData } from "@tests/mocks/data/dashboard-mock-data";
 import { ChartContainer } from "./ChartContainer";
 
 interface LineChartProps {

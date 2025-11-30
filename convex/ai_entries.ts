@@ -4,7 +4,7 @@
  */
 
 import { v } from "convex/values";
-import { action, mutation } from "./_generated/server";
+import { action, mutation, query } from "./_generated/server";
 import { api } from "./_generated/api";
 
 // Types for accounting engine (inlined since workspace packages may not be available in Convex)
@@ -32,6 +32,7 @@ interface TransactionContext {
   date: string;
   isBusiness: boolean;
   userId: string;
+  isNewCategory?: boolean; // Flag indicating if category is new (not in default list)
 }
 
 /**
@@ -41,7 +42,12 @@ function suggestEntry(
   transaction: TransactionContext,
   accounts: Account[],
   overrideDebitAccountId?: string,
-  overrideCreditAccountId?: string
+  overrideCreditAccountId?: string,
+  businessContext?: {
+    businessType?: string;
+    businessEntityType?: string;
+    accountingMethod: string;
+  } | null
 ): EntrySuggestion {
   const amount = Math.abs(transaction.amount);
   const isExpense = transaction.amount < 0;
@@ -105,12 +111,27 @@ function suggestEntry(
   // Expense transaction
   let expenseAccount: Account | null = null;
   if (isExpense) {
-    // First, try to find account by category
-    expenseAccount = findAccountByCategory(
-      accounts,
-      'expense',
-      transaction.category || transaction.plaidCategory || []
-    );
+    // Enhanced expense account selection with business context
+    if (transaction.isBusiness && businessContext) {
+      // Industry-specific account preferences
+      const industryAccounts = getIndustryPreferredAccounts(
+        businessContext.businessType,
+        accounts
+      );
+      
+      if (industryAccounts.length > 0) {
+        expenseAccount = industryAccounts[0];
+      }
+    }
+
+    // If no industry match, try to find account by category
+    if (!expenseAccount) {
+      expenseAccount = findAccountByCategory(
+        accounts,
+        'expense',
+        transaction.category || transaction.plaidCategory || []
+      );
+    }
 
     // If no category match, try to find a specific expense account based on description/merchant
     // Check description FIRST (user's title is most accurate)
@@ -225,6 +246,35 @@ function suggestEntry(
   throw new Error('Unable to generate entry suggestion');
 }
 
+/**
+ * Get industry-preferred accounts based on business type
+ */
+function getIndustryPreferredAccounts(
+  businessType: string | undefined,
+  accounts: Account[]
+): Account[] {
+  if (!businessType) return [];
+
+  const preferences: Record<string, string[]> = {
+    creator: ['software', 'equipment', 'marketing', 'subscription'],
+    tradesperson: ['vehicle', 'tools', 'materials', 'equipment'],
+    wellness: ['equipment', 'certification', 'facility', 'marketing'],
+    tutor: ['materials', 'software', 'education', 'marketing'],
+    real_estate: ['marketing', 'professional', 'vehicle', 'software'],
+    agency: ['software', 'marketing', 'professional', 'subscription'],
+  };
+
+  const preferredKeywords = preferences[businessType] || [];
+  const matching = accounts.filter(acc =>
+    acc.type === 'expense' &&
+    preferredKeywords.some(keyword =>
+      acc.name.toLowerCase().includes(keyword)
+    )
+  );
+
+  return matching;
+}
+
 function findAccountByCategory(
   accounts: Account[],
   accountType: Account['type'],
@@ -275,6 +325,413 @@ function findAccountByCategory(
 }
 
 /**
+ * Build comprehensive system prompt for AI accounting decisions
+ */
+function buildSystemPrompt(
+  transactionContext: TransactionContext,
+  businessContext: {
+    businessType?: string;
+    businessEntityType?: string;
+    businessCategory?: string;
+    naicsCode?: string;
+    accountingMethod: string;
+  } | null,
+  accounts: Account[]
+): string {
+  const isBusiness = transactionContext.isBusiness;
+  const isExpense = transactionContext.amount < 0;
+  const isIncome = transactionContext.amount > 0;
+
+  let prompt = `You are an expert certified public accountant (CPA) with deep knowledge of:
+- Generally Accepted Accounting Principles (GAAP)
+- Double-entry bookkeeping fundamentals
+- Tax code and deduction rules (IRS guidelines)
+- Industry-specific accounting practices
+- Small business and startup accounting needs
+
+YOUR ROLE:
+You are helping categorize transactions and create accurate double-entry accounting entries that follow accounting best practices and are optimized for tax purposes.
+
+CORE PRINCIPLES:
+1. **Accuracy First**: Every entry must balance (debits = credits)
+2. **Tax Optimization**: Choose categories that maximize legitimate deductions
+3. **GAAP Compliance**: Follow Generally Accepted Accounting Principles
+4. **Industry Awareness**: Consider business type and industry standards
+5. **Audit Readiness**: Create entries that are clear and defensible
+
+TRANSACTION CONTEXT:
+- Description: "${transactionContext.description}"
+- Merchant: ${transactionContext.merchant || "Not provided"}
+- Amount: $${Math.abs(transactionContext.amount).toFixed(2)}
+- Date: ${transactionContext.date}
+- Type: ${isExpense ? "Expense" : "Income"}
+- Classification: ${isBusiness ? "Business" : "Personal"}`;
+
+  // Add business-specific context
+  if (isBusiness && businessContext) {
+    prompt += `\n\nBUSINESS CONTEXT:
+- Business Type: ${businessContext.businessType || "Not specified"}
+- Entity Type: ${businessContext.businessEntityType || "Not specified"}
+- Business Category: ${businessContext.businessCategory || "Not specified"}
+- NAICS Code: ${businessContext.naicsCode || "Not specified"}
+- Accounting Method: ${businessContext.accountingMethod || "cash"}`;
+
+    // Add industry-specific guidance
+    if (businessContext.businessType) {
+      prompt += `\n\nINDUSTRY-SPECIFIC CONSIDERATIONS:`;
+      
+      switch (businessContext.businessType) {
+        case "creator":
+          prompt += `\n- Content creators often have equipment, software subscriptions, and home office expenses
+- Consider Section 179 deductions for equipment
+- Software subscriptions (Adobe, Canva, etc.) are typically deductible
+- Home office deduction may apply if space is used exclusively for business`;
+          break;
+        case "tradesperson":
+          prompt += `\n- Tradespeople often have vehicle expenses, tools, and materials
+- Vehicle expenses can be tracked via mileage or actual expenses
+- Tools and equipment may qualify for Section 179
+- Materials are typically cost of goods sold (COGS)`;
+          break;
+        case "wellness":
+          prompt += `\n- Wellness businesses may have certification costs, equipment, and facility expenses
+- Continuing education and certifications are typically deductible
+- Equipment (yoga mats, weights, etc.) may be depreciated or expensed
+- Facility rent or home office may apply`;
+          break;
+        case "tutor":
+          prompt += `\n- Tutors often have educational materials, software, and home office expenses
+- Educational materials and software subscriptions are deductible
+- Home office deduction may apply
+- Travel to students' locations may be deductible`;
+          break;
+        case "real_estate":
+          prompt += `\n- Real estate professionals have unique deduction opportunities
+- Marketing and advertising expenses are significant
+- Vehicle expenses for property visits
+- Professional services (legal, accounting) are deductible
+- Consider passive activity loss rules`;
+          break;
+        case "agency":
+          prompt += `\n- Agencies typically have high software, marketing, and professional service costs
+- Software subscriptions (project management, design tools) are deductible
+- Marketing and advertising are significant expenses
+- Professional services (legal, accounting) are deductible
+- Consider client acquisition costs`;
+          break;
+      }
+    }
+
+    // Add entity type considerations
+    if (businessContext.businessEntityType) {
+      prompt += `\n\nENTITY TYPE CONSIDERATIONS:`;
+      switch (businessContext.businessEntityType) {
+        case "sole_proprietorship":
+          prompt += `\n- Personal and business expenses must be clearly separated
+- Schedule C deductions apply
+- Self-employment tax considerations`;
+          break;
+        case "llc":
+          prompt += `\n- Can be taxed as sole proprietorship, partnership, or corporation
+- Maintain clear separation of business and personal expenses
+- Consider pass-through taxation benefits`;
+          break;
+        case "s_corp":
+          prompt += `\n- Salary vs. distributions must be properly categorized
+- Reasonable compensation rules apply
+- Fringe benefits may be deductible`;
+          break;
+        case "c_corp":
+          prompt += `\n- Corporate tax structure applies
+- Employee benefits are deductible
+- Consider fringe benefit deductions`;
+          break;
+      }
+    }
+  } else if (!isBusiness) {
+    prompt += `\n\nPERSONAL TRANSACTION GUIDANCE:
+- Personal expenses are NOT tax-deductible
+- Focus on accurate categorization for budgeting and tracking
+- No business deduction considerations needed`;
+  }
+
+  // Add accounting method considerations
+  if (businessContext?.accountingMethod === "accrual") {
+    prompt += `\n\nACCRUAL METHOD CONSIDERATIONS:
+- Record expenses when incurred, not when paid
+- Record income when earned, not when received
+- Accounts receivable and payable may be involved`;
+  } else {
+    prompt += `\n\nCASH METHOD CONSIDERATIONS:
+- Record expenses when paid
+- Record income when received
+- Simpler for small businesses`;
+  }
+
+  prompt += `\n\nAVAILABLE ACCOUNTS:
+${accounts.map(a => `- ${a.name} (${a.type})`).join('\n')}
+
+ACCOUNTING BEST PRACTICES:
+1. **Expense Categorization**:
+   - Use specific, descriptive categories (avoid "Miscellaneous")
+   - Match categories to tax deduction categories when possible
+   - Consider IRS Schedule C categories for business expenses
+   - Group similar expenses for easier tax preparation
+
+2. **Double-Entry Rules**:
+   - Expenses: Debit expense account, Credit cash/credit card
+   - Income: Debit cash/bank, Credit income/revenue account
+   - Always ensure debits = credits
+   - Use appropriate account types (asset, liability, equity, income, expense)
+
+3. **Tax Deduction Optimization**:
+   - Business meals: 50% deductible (100% for certain events)
+   - Home office: Must be exclusive use for business
+   - Vehicle: Choose between standard mileage or actual expenses
+   - Equipment: Consider Section 179 expensing vs. depreciation
+
+4. **Category Selection Guidelines**:
+   - Be specific: "Office Supplies" not "Supplies"
+   - Use standard categories: "Meals & Entertainment", "Travel", "Software & Subscriptions"
+   - Avoid generic categories unless truly necessary
+   - Consider industry-specific categories when appropriate
+
+YOUR TASK:
+Analyze the transaction and provide:
+1. The most appropriate expense/income category
+2. The correct double-entry accounts (debit and credit)
+3. A clear explanation of why these choices follow accounting best practices
+4. Confidence level (0-1) based on how certain you are
+
+Be specific, accurate, and consider tax implications.`;
+
+  return prompt;
+}
+
+/**
+ * Enhanced keyword matching fallback for category inference
+ */
+function inferCategoryFromKeywords(
+  description: string,
+  merchant: string | undefined,
+  isBusiness: boolean
+): { category: string; confidence: number; method: "keyword" } {
+  const desc = description.toLowerCase();
+  const merch = (merchant || "").toLowerCase();
+  const combined = `${desc} ${merch}`;
+
+  // Comprehensive keyword matching with business context
+  const patterns = [
+    // Meals & Entertainment (highest priority for common case)
+    {
+      keywords: ['dinner', 'lunch', 'breakfast', 'meal', 'food', 'restaurant', 'coffee', 'starbucks', 'dining', 'cafe', 'bar', 'pizza', 'eat', 'drink', 'beverage', 'catering'],
+      category: 'Meals & Entertainment',
+      confidence: 0.90,
+    },
+    // Office Supplies
+    {
+      keywords: ['office', 'supplies', 'stationery', 'paper', 'pens', 'staples', 'stapler', 'folder', 'binder'],
+      category: 'Office Supplies',
+      confidence: 0.85,
+    },
+    // Travel
+    {
+      keywords: ['travel', 'hotel', 'flight', 'uber', 'lyft', 'taxi', 'airline', 'airport', 'lodging', 'accommodation', 'car rental', 'rental car'],
+      category: 'Travel',
+      confidence: 0.90,
+    },
+    // Software & Subscriptions
+    {
+      keywords: ['software', 'saas', 'subscription', 'app', 'platform', 'service', 'cloud', 'hosting', 'domain', 'ssl'],
+      category: 'Software & Subscriptions',
+      confidence: 0.85,
+    },
+    // Marketing & Advertising
+    {
+      keywords: ['marketing', 'advertising', 'promotion', 'ad', 'campaign', 'social media', 'seo', 'ppc', 'google ads', 'facebook ads'],
+      category: 'Marketing & Advertising',
+      confidence: 0.85,
+    },
+    // Professional Services
+    {
+      keywords: ['legal', 'attorney', 'lawyer', 'accounting', 'bookkeeping', 'cpa', 'consulting', 'consultant', 'professional service'],
+      category: 'Professional Services',
+      confidence: 0.90,
+    },
+    // Utilities
+    {
+      keywords: ['utilities', 'electric', 'water', 'gas', 'internet', 'phone', 'telephone', 'utility', 'power', 'electricity'],
+      category: 'Utilities',
+      confidence: 0.85,
+    },
+    // Rent
+    {
+      keywords: ['rent', 'lease', 'rental', 'landlord'],
+      category: 'Rent',
+      confidence: 0.90,
+    },
+    // Insurance
+    {
+      keywords: ['insurance', 'premium', 'coverage', 'policy'],
+      category: 'Insurance',
+      confidence: 0.85,
+    },
+    // Vehicle
+    {
+      keywords: ['vehicle', 'car', 'truck', 'gas', 'fuel', 'gasoline', 'maintenance', 'repair', 'auto', 'automotive'],
+      category: 'Vehicle Expenses',
+      confidence: 0.80,
+    },
+  ];
+
+  for (const pattern of patterns) {
+    if (pattern.keywords.some(keyword => combined.includes(keyword))) {
+      return { category: pattern.category, confidence: pattern.confidence, method: "keyword" };
+    }
+  }
+
+  // Fallback
+  return {
+    category: isBusiness ? 'Other Business Expense' : 'Other Personal Expense',
+    confidence: 0.50,
+    method: "keyword",
+  };
+}
+
+/**
+ * Use AI to infer the best category for a transaction
+ */
+export const inferCategoryWithAI = action({
+  args: {
+    description: v.string(),
+    merchant: v.optional(v.string()),
+    amount: v.number(),
+    isBusiness: v.boolean(),
+    businessContext: v.optional(v.object({
+      businessType: v.optional(v.string()),
+      businessCategory: v.optional(v.string()),
+      naicsCode: v.optional(v.string()),
+    })),
+    userDescription: v.optional(v.string()), // User-provided description for context/corrections
+  },
+  handler: async (ctx, args) => {
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    if (!openRouterKey) {
+      // Fallback to keyword matching
+      return inferCategoryFromKeywords(args.description, args.merchant, args.isBusiness);
+    }
+
+    const systemPrompt = `You are an expert accountant categorizing transactions for ${args.isBusiness ? "business" : "personal"} use.
+
+${args.isBusiness && args.businessContext ? `Business Context:
+- Type: ${args.businessContext.businessType || "Not specified"}
+- Category: ${args.businessContext.businessCategory || "Not specified"}
+- NAICS: ${args.businessContext.naicsCode || "Not specified"}
+` : ""}
+
+Select the MOST SPECIFIC and APPROPRIATE category from these options:
+${args.isBusiness ? `
+BUSINESS CATEGORIES:
+- Meals & Entertainment (50% deductible, 100% for certain events)
+- Office Supplies
+- Travel (transportation, lodging, meals while traveling)
+- Software & Subscriptions
+- Marketing & Advertising
+- Professional Services (legal, accounting, consulting)
+- Rent & Utilities
+- Insurance
+- Vehicle Expenses
+- Equipment & Depreciation
+- Cost of Goods Sold (COGS)
+- Payroll & Benefits
+- Taxes & Licenses
+- Interest Expense
+- Depreciation
+- Other Business Expense` : `
+PERSONAL CATEGORIES:
+- Food & Dining
+- Shopping
+- Transportation
+- Entertainment
+- Bills & Utilities
+- Healthcare
+- Education
+- Personal Care
+- Travel
+- Other Personal Expense`}
+
+Return ONLY the category name, nothing else.`;
+
+    const userPrompt = `Transaction:
+Description: "${args.description}"
+${args.merchant ? `Merchant: ${args.merchant}` : ""}
+Amount: $${Math.abs(args.amount).toFixed(2)}
+${args.userDescription ? `\nUser Context: "${args.userDescription}"` : ""}
+
+${args.userDescription ? "Note: The user has provided additional context above. Please use this information to better categorize the transaction.\n\n" : ""}What is the most appropriate category?`;
+
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openRouterKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://ez-financial.app",
+          "X-Title": "EZ Financial",
+        },
+        body: JSON.stringify({
+          model: "x-ai/grok-4.1-fast:free",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.3, // Lower temperature for more consistent categorization
+          max_tokens: 50,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const category = data.choices?.[0]?.message?.content?.trim();
+        if (category) {
+          // Check if category exists in default lists
+          const businessCategories = [
+            "Meals & Entertainment", "Office Supplies", "Travel", "Software & Subscriptions",
+            "Marketing & Advertising", "Professional Services", "Rent & Utilities", "Insurance",
+            "Vehicle Expenses", "Equipment & Depreciation", "Cost of Goods Sold (COGS)",
+            "Payroll & Benefits", "Taxes & Licenses", "Interest Expense", "Depreciation", "Other Business Expense"
+          ];
+          const personalCategories = [
+            "Food & Dining", "Shopping", "Transportation", "Entertainment", "Bills & Utilities",
+            "Healthcare", "Education", "Personal Care", "Travel", "Other Personal Expense"
+          ];
+          const defaultCategories = args.isBusiness ? businessCategories : personalCategories;
+          const isNewCategory = !defaultCategories.some(cat => 
+            cat.toLowerCase() === category.toLowerCase() || 
+            category.toLowerCase().includes(cat.toLowerCase()) ||
+            cat.toLowerCase().includes(category.toLowerCase())
+          );
+          
+          return { 
+            category, 
+            confidence: 0.85, 
+            method: "ai",
+            isNewCategory: isNewCategory || false
+          };
+        }
+      }
+    } catch (error) {
+      console.warn("AI category inference failed, using fallback:", error);
+    }
+
+    // Fallback to keyword matching
+    const keywordResult = inferCategoryFromKeywords(args.description, args.merchant, args.isBusiness);
+    // Keyword matching always returns existing categories, so isNewCategory is false
+    return { ...keywordResult, isNewCategory: false };
+  },
+});
+
+/**
  * Generate AI suggestions for a transaction (can generate for both business and personal)
  * This is called from the modal when user clicks "Use AI"
  */
@@ -288,8 +745,12 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
     isBusiness: v.optional(v.boolean()), // null = generate both, true = business only, false = personal only
     overrideDebitAccountId: v.optional(v.string()), // Force a different debit account
     overrideCreditAccountId: v.optional(v.string()), // Force a different credit account
+    userDescription: v.optional(v.string()), // User-provided description for context/corrections
   },
   handler: async (ctx, args) => {
+    // Fetch business context
+    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext);
+    
     // Get user's accounts
     const accounts = await ctx.runQuery(api.accounts.getAll);
     
@@ -318,10 +779,15 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
       : [args.isBusiness]; // Generate for selected type only
 
     for (const isBusiness of contexts) {
+      // Combine description with user description if provided
+      const fullDescription = args.userDescription 
+        ? `${args.description}. ${args.userDescription}`
+        : args.description;
+
       const transactionContext: TransactionContext = {
         amount: args.amount,
         merchant: args.merchant || undefined,
-        description: args.description,
+        description: fullDescription,
         category: args.category ? [args.category] : undefined,
         date: args.date,
         isBusiness,
@@ -337,42 +803,45 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
         isBusiness,
       });
 
-      // FIRST: Infer category from description (before selecting accounts)
-      // This ensures the expense account matches the category
+      // Infer category using AI or keywords
       let inferredCategory = args.category;
       if (!inferredCategory) {
-        const desc = args.description.toLowerCase();
-        const merchant = (args.merchant || "").toLowerCase();
-        const combined = `${desc} ${merchant}`;
+        const categoryResult = await ctx.runAction(api.ai_entries.inferCategoryWithAI, {
+          description: args.description,
+          merchant: args.merchant,
+          amount: args.amount,
+          isBusiness,
+          businessContext: businessContext ? {
+            businessType: businessContext.businessType,
+            businessCategory: businessContext.businessCategory,
+            naicsCode: businessContext.naicsCode,
+          } : undefined,
+          userDescription: args.userDescription,
+        });
+        inferredCategory = categoryResult.category;
+        const isNewCategory = (categoryResult as any).isNewCategory || false;
+        console.log("[AI Suggestions] Inferred category:", inferredCategory, "method:", categoryResult.method, "isNewCategory:", isNewCategory);
         
-        // Check for food/meals FIRST
-        if (desc.includes('dinner') || desc.includes('lunch') || desc.includes('breakfast') || 
-            desc.includes('meal') || desc.includes('food') || desc.includes('restaurant') || 
-            desc.includes('coffee') || desc.includes('starbucks') || desc.includes('dining') ||
-            desc.includes('cafe') || desc.includes('bar') || desc.includes('pizza') ||
-            desc.includes('eat') || desc.includes('drink') || desc.includes('beverage')) {
-          inferredCategory = 'Meals & Entertainment';
-        } else if (combined.includes('office') || combined.includes('supplies') || combined.includes('stationery')) {
-          inferredCategory = 'Office Supplies';
-        } else if (combined.includes('travel') || combined.includes('hotel') || combined.includes('flight')) {
-          inferredCategory = 'Travel';
-        } else if (combined.includes('software') || combined.includes('saas') || combined.includes('subscription')) {
-          inferredCategory = 'Software & Subscriptions';
-        }
+        // Store isNewCategory flag for later use in suggestions
+        (transactionContext as any).isNewCategory = isNewCategory;
       }
       
       // Update transaction context with inferred category
       if (inferredCategory) {
         transactionContext.category = [inferredCategory];
-        console.log("[AI Suggestions] Inferred category for account matching:", inferredCategory);
       }
 
-      // Get suggestion from accounting engine with override support
+      // Get suggestion from accounting engine with override support and business context
       const engineSuggestion = suggestEntry(
         transactionContext, 
         engineAccounts,
         args.overrideDebitAccountId,
-        args.overrideCreditAccountId
+        args.overrideCreditAccountId,
+        businessContext ? {
+          businessType: businessContext.businessType,
+          businessEntityType: businessContext.businessEntityType,
+          accountingMethod: businessContext.accountingMethod,
+        } : null
       );
       
       console.log("[AI Suggestions] Engine suggestion:", {
@@ -390,6 +859,13 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
       let confidence = engineSuggestion.confidence;
 
       try {
+        // Build comprehensive system prompt
+        const systemPrompt = buildSystemPrompt(
+          transactionContext,
+          businessContext,
+          engineAccounts
+        );
+
         // Remove userId from transaction context for AI explanation (not in validator)
         const { userId, ...transactionForAI } = transactionContext;
         const aiExplanation = await ctx.runAction(api.ai_entries.generateExplanation, {
@@ -402,6 +878,14 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
           },
           transaction: transactionForAI,
           accounts: engineAccounts,
+          businessContext: businessContext ? {
+            businessType: businessContext.businessType,
+            businessEntityType: businessContext.businessEntityType,
+            businessCategory: businessContext.businessCategory,
+            naicsCode: businessContext.naicsCode,
+            accountingMethod: businessContext.accountingMethod,
+          } : undefined,
+          systemPrompt: systemPrompt,
         });
 
         if (aiExplanation) {
@@ -413,103 +897,17 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
         console.warn("AI explanation generation failed, using engine explanation:", error);
       }
 
-      // Determine suggested category - avoid "Uncategorized" using best practices
-      let suggestedCategory = args.category;
+      // Use the inferred category (already set in transactionContext.category)
+      // This was determined by AI or keyword matching earlier
+      const suggestedCategory = inferredCategory || args.category || 
+        (debitAccount?.type === 'expense' ? debitAccount.name : 
+         creditAccount?.type === 'income' ? creditAccount.name : 
+         isBusiness ? 'Business Expense' : 'Personal Expense');
       
-      // Debug logging for category inference
-      console.log("[AI Suggestions] Category inference:", {
-        providedCategory: args.category,
-        debitAccountName: debitAccount?.name,
-        debitAccountType: debitAccount?.type,
-        description: args.description,
-        merchant: args.merchant,
-      });
-      
-      if (!suggestedCategory) {
-        if (debitAccount?.type === 'expense') {
-          const accountName = debitAccount.name;
-          
-          // ALWAYS infer category from description FIRST (user's title is most accurate)
-          // This ensures we use what the user typed, not just the account name
-          const desc = args.description.toLowerCase();
-          const merchant = (args.merchant || "").toLowerCase();
-          const combined = `${desc} ${merchant}`;
-          
-          console.log("[AI Suggestions] Inferring category from:", { desc, merchant, combined, accountName });
-          
-          // Check for food/meals FIRST (most common) - check description FIRST
-          if (desc.includes('dinner') || desc.includes('lunch') || desc.includes('breakfast') || 
-              desc.includes('meal') || desc.includes('food') || desc.includes('restaurant') || 
-              desc.includes('coffee') || desc.includes('starbucks') || desc.includes('dining') ||
-              desc.includes('cafe') || desc.includes('bar') || desc.includes('pizza') ||
-              desc.includes('eat') || desc.includes('drink') || desc.includes('beverage')) {
-            suggestedCategory = 'Meals & Entertainment';
-            console.log("[AI Suggestions] ✅ Matched: Meals & Entertainment (from description keyword)");
-          } else if (combined.includes('food') || combined.includes('restaurant') || combined.includes('coffee') || 
-              combined.includes('starbucks') || combined.includes('dining') || combined.includes('dinner') ||
-              combined.includes('lunch') || combined.includes('breakfast') || combined.includes('meal')) {
-            suggestedCategory = 'Meals & Entertainment';
-            console.log("[AI Suggestions] ✅ Matched: Meals & Entertainment (from combined)");
-          } else if (combined.includes('office') || combined.includes('supplies') || combined.includes('stationery')) {
-            suggestedCategory = 'Office Supplies';
-            console.log("[AI Suggestions] ✅ Matched: Office Supplies");
-          } else if (combined.includes('travel') || combined.includes('hotel') || combined.includes('flight') || combined.includes('uber') || combined.includes('lyft')) {
-            suggestedCategory = 'Travel';
-            console.log("[AI Suggestions] ✅ Matched: Travel");
-          } else if (combined.includes('software') || combined.includes('saas') || combined.includes('subscription') || combined.includes('app')) {
-            suggestedCategory = 'Software & Subscriptions';
-            console.log("[AI Suggestions] ✅ Matched: Software & Subscriptions");
-          } else if (combined.includes('utilities') || combined.includes('electric') || combined.includes('water') || combined.includes('gas') || combined.includes('internet')) {
-            suggestedCategory = 'Utilities';
-            console.log("[AI Suggestions] ✅ Matched: Utilities");
-          } else if (combined.includes('marketing') || combined.includes('advertising') || combined.includes('promotion')) {
-            suggestedCategory = 'Marketing & Advertising';
-            console.log("[AI Suggestions] ✅ Matched: Marketing & Advertising");
-          } else if (combined.includes('rent') || combined.includes('lease')) {
-            suggestedCategory = 'Rent';
-            console.log("[AI Suggestions] ✅ Matched: Rent");
-          } else if (combined.includes('insurance')) {
-            suggestedCategory = 'Insurance';
-            console.log("[AI Suggestions] ✅ Matched: Insurance");
-          } else if (combined.includes('legal') || combined.includes('attorney') || combined.includes('lawyer')) {
-            suggestedCategory = 'Legal & Professional Services';
-            console.log("[AI Suggestions] ✅ Matched: Legal & Professional Services");
-          } else if (combined.includes('accounting') || combined.includes('bookkeeping') || combined.includes('cpa')) {
-            suggestedCategory = 'Accounting & Bookkeeping';
-            console.log("[AI Suggestions] ✅ Matched: Accounting & Bookkeeping");
-          }
-          
-          // If we couldn't infer from description, fall back to account name or merchant
-          if (!suggestedCategory) {
-            // NEVER use uncategorized - always infer a better category
-            if (accountName.toLowerCase().includes('uncategorized') || 
-                accountName.toLowerCase().includes('miscellaneous') ||
-                accountName.toLowerCase().includes('other')) {
-              // Use merchant name if available, otherwise use descriptive category
-              if (args.merchant && args.merchant.length > 0) {
-                suggestedCategory = args.merchant;
-                console.log("[AI Suggestions] ✅ Using merchant name:", args.merchant);
-              } else {
-                suggestedCategory = isBusiness ? 'Business Expense' : 'Personal Expense';
-                console.log("[AI Suggestions] ✅ Using fallback category:", suggestedCategory);
-              }
-            } else {
-              // Account name is good, use it
-              suggestedCategory = accountName;
-              console.log("[AI Suggestions] ✅ Using account name:", accountName);
-            }
-          }
-        } else if (creditAccount?.type === 'income') {
-          // For income, use account name or infer
-          suggestedCategory = creditAccount.name || 'Revenue';
-          console.log("[AI Suggestions] ✅ Income category:", suggestedCategory);
-        } else {
-          suggestedCategory = isBusiness ? 'Business Expense' : 'Personal Expense';
-          console.log("[AI Suggestions] ✅ Fallback category:", suggestedCategory);
-        }
-      }
-
       console.log("[AI Suggestions] Final category selected:", suggestedCategory);
+      
+      // Check if this is a new category (from transactionContext or inferred)
+      const suggestionIsNewCategory = (transactionContext as any).isNewCategory || false;
       
       suggestions.push({
         isBusiness,
@@ -521,7 +919,8 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
         amount: engineSuggestion.amount,
         explanation: enhancedExplanation,
         confidence,
-      });
+        isNewCategory: suggestionIsNewCategory,
+      } as any);
     }
 
     return { suggestions };
@@ -543,6 +942,9 @@ export const suggestDoubleEntry: ReturnType<typeof action> = action({
     if (!transaction) {
       throw new Error("Transaction not found");
     }
+
+    // Fetch business context
+    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext);
 
     // Get user's accounts
     const accounts = await ctx.runQuery(api.accounts.getAll);
@@ -566,14 +968,47 @@ export const suggestDoubleEntry: ReturnType<typeof action> = action({
       userId: transaction.userId,
     };
 
-    // Get initial suggestion from accounting engine
-    const engineSuggestion = suggestEntry(transactionContext, engineAccounts, undefined, undefined);
+    // Infer category if not provided
+    if (!transactionContext.category || transactionContext.category.length === 0) {
+      const categoryResult = await ctx.runAction(api.ai_entries.inferCategoryWithAI, {
+        description: transaction.description,
+        merchant: transaction.merchant,
+        amount: transaction.amount,
+        isBusiness: transactionContext.isBusiness,
+        businessContext: businessContext ? {
+          businessType: businessContext.businessType,
+          businessCategory: businessContext.businessCategory,
+          naicsCode: businessContext.naicsCode,
+        } : undefined,
+      });
+      transactionContext.category = [categoryResult.category];
+    }
+
+    // Get initial suggestion from accounting engine with business context
+    const engineSuggestion = suggestEntry(
+      transactionContext, 
+      engineAccounts, 
+      undefined, 
+      undefined,
+      businessContext ? {
+        businessType: businessContext.businessType,
+        businessEntityType: businessContext.businessEntityType,
+        accountingMethod: businessContext.accountingMethod,
+      } : null
+    );
 
     // Enhance explanation with AI if OpenRouter is configured
     let enhancedExplanation = engineSuggestion.explanation;
     let confidence = engineSuggestion.confidence;
 
     try {
+      // Build comprehensive system prompt
+      const systemPrompt = buildSystemPrompt(
+        transactionContext,
+        businessContext,
+        engineAccounts
+      );
+
       const aiExplanation = await ctx.runAction(api.ai_entries.generateExplanation, {
         entry: {
           debitAccountId: engineSuggestion.debitAccountId,
@@ -584,6 +1019,14 @@ export const suggestDoubleEntry: ReturnType<typeof action> = action({
         },
         transaction: transactionContext,
         accounts: engineAccounts,
+        businessContext: businessContext ? {
+          businessType: businessContext.businessType,
+          businessEntityType: businessContext.businessEntityType,
+          businessCategory: businessContext.businessCategory,
+          naicsCode: businessContext.naicsCode,
+          accountingMethod: businessContext.accountingMethod,
+        } : undefined,
+        systemPrompt: systemPrompt,
       });
 
       if (aiExplanation) {
@@ -645,6 +1088,14 @@ export const generateExplanation = action({
       name: v.string(),
       type: v.string(),
     })),
+    businessContext: v.optional(v.object({
+      businessType: v.optional(v.string()),
+      businessEntityType: v.optional(v.string()),
+      businessCategory: v.optional(v.string()),
+      naicsCode: v.optional(v.string()),
+      accountingMethod: v.string(),
+    })),
+    systemPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const openRouterKey = process.env.OPENROUTER_API_KEY;
@@ -661,10 +1112,27 @@ export const generateExplanation = action({
       return null;
     }
 
-    // Build prompt for OpenRouter
-    const prompt = `Explain why this double-entry accounting entry is correct in plain, friendly language. Use "I chose this because..." format.
+    // Use provided system prompt or build one
+    const systemPrompt = args.systemPrompt || buildSystemPrompt(
+      {
+        amount: args.transaction.amount,
+        merchant: args.transaction.merchant,
+        description: args.transaction.description,
+        category: args.transaction.category,
+        date: args.transaction.date,
+        isBusiness: args.transaction.isBusiness,
+        userId: "",
+      },
+      args.businessContext || null,
+      args.accounts.map(a => ({
+        id: a.id,
+        name: a.name,
+        type: a.type as Account['type'],
+      }))
+    );
 
-Transaction: ${args.transaction.description}
+    // Build user prompt
+    const userPrompt = `Transaction: ${args.transaction.description}
 ${args.transaction.merchant ? `Merchant: ${args.transaction.merchant}` : ''}
 Amount: $${Math.abs(args.transaction.amount).toFixed(2)}
 ${args.transaction.category ? `Category: ${args.transaction.category.join(', ')}` : ''}
@@ -675,9 +1143,13 @@ Debit: ${debitAccount.name} (${debitAccount.type})
 Credit: ${creditAccount.name} (${creditAccount.type})
 Amount: $${args.entry.amount.toFixed(2)}
 
-Current explanation: ${args.entry.explanation}
+Provide a clear, friendly explanation starting with "I chose this because..." that:
+1. Explains why this entry follows accounting best practices
+2. Mentions any tax implications if applicable
+3. Helps a non-accountant understand the reasoning
+4. Is specific to this transaction and business context
 
-Provide a clear, friendly explanation starting with "I chose this because..." that helps a non-accountant understand why this entry makes sense. Keep it under 2 sentences.`;
+Keep it under 3 sentences.`;
 
     try {
       // Try primary model first
@@ -703,12 +1175,16 @@ Provide a clear, friendly explanation starting with "I chose this because..." th
               model,
               messages: [
                 {
+                  role: "system",
+                  content: systemPrompt,
+                },
+                {
                   role: "user",
-                  content: prompt,
+                  content: userPrompt,
                 },
               ],
               temperature: 0.7,
-              max_tokens: 150,
+              max_tokens: 200, // Increased for more detailed explanations
             }),
           });
 
@@ -775,7 +1251,7 @@ export const createProposedEntry = mutation({
       .withIndex("by_user_status", (q) =>
         q.eq("userId", transaction.userId).eq("status", "pending")
       )
-      .filter((q) => q.eq(q.field("transactionId"), args.transactionId))
+      .filter((q: any) => q.eq(q.field("transactionId"), args.transactionId))
       .first();
 
     if (existing) {
@@ -815,6 +1291,39 @@ export const createProposedEntry = mutation({
 });
 
 /**
+ * Get comprehensive business context for AI decision-making
+ */
+export const getBusinessContext = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user) return null;
+
+    const businessProfile = await ctx.db
+      .query("business_profiles")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .first();
+
+    return {
+      businessType: user.businessType, // creator, tradesperson, wellness, etc.
+      businessEntityType: user.preferences?.businessEntityType, // llc, s_corp, etc.
+      businessCategory: businessProfile?.businessCategory,
+      naicsCode: businessProfile?.naicsCode,
+      entityType: businessProfile?.entityType,
+      businessDescription: businessProfile?.businessDescription,
+      accountingMethod: user.preferences?.accountingMethod || "cash", // cash or accrual
+    };
+  },
+});
+
+/**
  * Get alternative suggestions for a transaction (when confidence is low)
  */
 export const getAlternativeSuggestions = action({
@@ -829,6 +1338,9 @@ export const getAlternativeSuggestions = action({
     if (!transaction) {
       throw new Error("Transaction not found");
     }
+
+    // Fetch business context
+    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext);
 
     const accounts = await ctx.runQuery(api.accounts.getAll);
     const engineAccounts: Account[] = accounts.map((acc: any) => ({
@@ -848,8 +1360,18 @@ export const getAlternativeSuggestions = action({
       userId: transaction.userId,
     };
 
-    // Get primary suggestion
-    const primary = suggestEntry(transactionContext, engineAccounts, undefined, undefined);
+    // Get primary suggestion with business context
+    const primary = suggestEntry(
+      transactionContext, 
+      engineAccounts, 
+      undefined, 
+      undefined,
+      businessContext ? {
+        businessType: businessContext.businessType,
+        businessEntityType: businessContext.businessEntityType,
+        accountingMethod: businessContext.accountingMethod,
+      } : null
+    );
 
     // Generate alternatives by trying different account combinations
     const alternatives: EntrySuggestion[] = [];

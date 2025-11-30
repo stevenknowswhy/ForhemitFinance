@@ -342,7 +342,7 @@ export const upsertAccount = mutation({
     const existing = await ctx.db
       .query("accounts")
       .withIndex("by_user", (q) => q.eq("userId", institution.userId))
-      .filter((q) => q.eq(q.field("plaidAccountId"), args.plaidAccountId))
+      .filter((q: any) => q.eq(q.field("plaidAccountId"), args.plaidAccountId))
       .first();
 
     if (existing) {
@@ -421,7 +421,7 @@ export const syncTransactions: ReturnType<typeof action> = action({
             access_token: institution.accessTokenEncrypted,
             start_date: startDate.toISOString().split("T")[0],
             end_date: endDate.toISOString().split("T")[0],
-            account_ids: accounts.map((a) => a.plaidAccountId).filter((id): id is string => !!id),
+            account_ids: accounts.map((a: any) => a.plaidAccountId).filter((id: any): id is string => !!id),
           } as any);
           break; // Success, exit retry loop
         } catch (error: any) {
@@ -443,7 +443,7 @@ export const syncTransactions: ReturnType<typeof action> = action({
 
       // Process each transaction
       for (const txn of plaidTransactions) {
-        const account = accounts.find((a) => a.plaidAccountId === txn.account_id);
+        const account = accounts.find((a: any) => a.plaidAccountId === txn.account_id);
         if (!account) continue;
 
         // Check if transaction already exists
@@ -560,6 +560,98 @@ export const updateInstitutionStatus = mutation({
     await ctx.db.patch(args.institutionId, {
       syncStatus: args.status,
     });
+  },
+});
+
+/**
+ * Get institution by Plaid item ID
+ */
+export const getInstitutionByItemId = query({
+  args: {
+    plaidItemId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("institutions")
+      .withIndex("by_plaid_item", (q) => q.eq("plaidItemId", args.plaidItemId))
+      .first();
+  },
+});
+
+/**
+ * Sync transactions by Plaid item ID (for webhooks)
+ */
+export const syncTransactionsByItemId: ReturnType<typeof action> = action({
+  args: {
+    itemId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find institution by Plaid item ID
+    const institution = await ctx.runQuery(api.plaid.getInstitutionByItemId, {
+      plaidItemId: args.itemId,
+    });
+
+    if (!institution) {
+      throw new Error(`Institution not found for Plaid item ${args.itemId}`);
+    }
+
+    // Call the existing syncTransactions with institutionId
+    await ctx.scheduler.runAfter(0, api.plaid.syncTransactions, {
+      institutionId: institution._id,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Update item status (for webhooks)
+ */
+export const updateItemStatus = mutation({
+  args: {
+    itemId: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("error"),
+      v.literal("pending_expiration"),
+      v.literal("permission_revoked"),
+      v.literal("disconnected")
+    ),
+    error: v.optional(
+      v.object({
+        type: v.string(),
+        code: v.string(),
+        message: v.string(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const institution = await ctx.db
+      .query("institutions")
+      .withIndex("by_plaid_item", (q) => q.eq("plaidItemId", args.itemId))
+      .first();
+
+    if (!institution) {
+      throw new Error(`Institution not found for Plaid item ${args.itemId}`);
+    }
+
+    const updateData: any = {
+      syncStatus: args.status === "active" ? "active" : "error",
+      lastSyncAt: Date.now(),
+    };
+
+    if (args.error) {
+      updateData.lastError = {
+        type: args.error.type,
+        code: args.error.code,
+        message: args.error.message,
+        timestamp: Date.now(),
+      };
+    }
+
+    await ctx.db.patch(institution._id, updateData);
+
+    return { success: true };
   },
 });
 

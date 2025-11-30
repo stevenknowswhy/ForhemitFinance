@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { mockDashboardData, type DashboardData } from "../data/mockData";
+import { mockDashboardData, type DashboardData } from "@tests/mocks/data/dashboard-mock-data";
 
 /**
  * Hook for fetching dashboard data

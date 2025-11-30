@@ -1,7 +1,7 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { DashboardData } from "../../data/mockData";
+import { DashboardData } from "@tests/mocks/data/dashboard-mock-data";
 import { cn } from "@/lib/utils";
 
 interface ExportButtonProps {

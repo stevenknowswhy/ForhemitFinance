@@ -10,10 +10,23 @@ const nextConfig = {
     // NEXT_PUBLIC_* variables are automatically exposed
   },
   
-  // Webpack configuration for Convex imports
-  webpack: (config) => {
+  // Webpack configuration for Convex imports and tests directory
+  webpack: (config, { defaultLoaders }) => {
     // Follow symlinks to resolve Convex files
     config.resolve.symlinks = true;
+    
+    // Allow imports from tests directory (outside app directory)
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@tests': path.resolve(__dirname, '../../tests'),
+    };
+    
+    // Process TypeScript files from tests directory
+    config.module.rules.push({
+      test: /\.(ts|tsx)$/,
+      include: [path.resolve(__dirname, '../../tests')],
+      use: [defaultLoaders.babel],
+    });
     
     return config;
   },

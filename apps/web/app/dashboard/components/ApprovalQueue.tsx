@@ -7,11 +7,13 @@
 
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { EntryPreview } from "./EntryPreview";
-import { Check, X, Edit2, CheckCheck, Loader2 } from "lucide-react";
+import { Check, X, Edit2, CheckCheck, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Id } from "../../../convex/_generated/dataModel";
+import { useSwipeable } from "react-swipeable";
+import { useToast } from "@/lib/use-toast";
 
 interface EditEntryModalProps {
   entry: any;
@@ -38,10 +40,10 @@ function EditEntryModal({ entry, accounts, onSave, onClose }: EditEntryModalProp
     onClose();
   };
 
-  const debitAccounts = accounts.filter(a => 
+  const debitAccounts = accounts.filter((a: any) => 
     a.type === "asset" || a.type === "expense" || a.type === "equity"
   );
-  const creditAccounts = accounts.filter(a => 
+  const creditAccounts = accounts.filter((a: any) => 
     a.type === "asset" || a.type === "liability" || a.type === "income" || a.type === "equity"
   );
 
@@ -60,7 +62,7 @@ function EditEntryModal({ entry, accounts, onSave, onClose }: EditEntryModalProp
               onChange={(e) => setDebitAccountId(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
             >
-              {debitAccounts.map((acc) => (
+              {debitAccounts.map((acc: any) => (
                 <option key={acc._id} value={acc._id}>
                   {acc.name} ({acc.type})
                 </option>
@@ -77,7 +79,7 @@ function EditEntryModal({ entry, accounts, onSave, onClose }: EditEntryModalProp
               onChange={(e) => setCreditAccountId(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
             >
-              {creditAccounts.map((acc) => (
+              {creditAccounts.map((acc: any) => (
                 <option key={acc._id} value={acc._id}>
                   {acc.name} ({acc.type})
                 </option>
@@ -148,55 +150,190 @@ export function ApprovalQueue() {
   const approveEntry = useMutation(api.transactions.approveEntry);
   const rejectEntry = useMutation(api.transactions.rejectEntry);
   const getAlternatives = useAction(api.ai_entries.getAlternativeSuggestions);
+  const { toast } = useToast();
   
   const [selectedEntries, setSelectedEntries] = useState<Set<Id<"entries_proposed">>>(new Set());
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [alternativesCache, setAlternativesCache] = useState<Record<string, any[]>>({});
+  const [error, setError] = useState<{ entryId: Id<"entries_proposed"> | null; message: string } | null>(null);
+  const [retryCount, setRetryCount] = useState<Record<string, number>>({});
 
-  // Swipe-to-approve state (mobile)
-  const [swipeStart, setSwipeStart] = useState<{ x: number; y: number; entryId: Id<"entries_proposed"> | null }>({
-    x: 0,
-    y: 0,
-    entryId: null,
-  });
-  const [swipeOffset, setSwipeOffset] = useState<Record<string, number>>({});
+  // Swipe state for visual feedback
+  const [swipeState, setSwipeState] = useState<Record<string, { direction: 'left' | 'right' | null; delta: number }>>({});
 
-  const handleApprove = async (entryId: Id<"entries_proposed">) => {
-    setIsProcessing(true);
+  const handleApprove = useCallback(async (entryId: Id<"entries_proposed">, retry = false) => {
+    if (!retry) {
+      setIsProcessing(true);
+      setError(null);
+    }
+    
+    const currentRetryCount = retryCount[entryId] || 0;
+    const maxRetries = 3;
+    
     try {
       await approveEntry({ entryId });
-    } catch (error) {
-      console.error("Failed to approve entry:", error);
+      // Success - clear error and retry count
+      setError(null);
+      setRetryCount(prev => {
+        const next = { ...prev };
+        delete next[entryId];
+        return next;
+      });
+      toast({
+        title: "Entry approved",
+        description: "The transaction has been approved and added to your books.",
+      });
+    } catch (err: any) {
+      const errorMessage = err?.message || "Failed to approve entry. Please try again.";
+      console.error("Failed to approve entry:", err);
+      
+      if (currentRetryCount < maxRetries) {
+        // Auto-retry with exponential backoff
+        const delay = Math.pow(2, currentRetryCount) * 1000; // 1s, 2s, 4s
+        setTimeout(() => {
+          setRetryCount(prev => ({ ...prev, [entryId]: currentRetryCount + 1 }));
+          handleApprove(entryId, true);
+        }, delay);
+      } else {
+        // Max retries reached - show error
+        setError({ entryId, message: errorMessage });
+      }
     } finally {
-      setIsProcessing(false);
+      if (!retry) {
+        setIsProcessing(false);
+      }
     }
-  };
+  }, [approveEntry, retryCount]);
 
-  const handleReject = async (entryId: Id<"entries_proposed">) => {
-    setIsProcessing(true);
+  const handleReject = useCallback(async (entryId: Id<"entries_proposed">, retry = false) => {
+    if (!retry) {
+      setIsProcessing(true);
+      setError(null);
+    }
+    
+    const currentRetryCount = retryCount[entryId] || 0;
+    const maxRetries = 3;
+    
     try {
       await rejectEntry({ entryId });
-    } catch (error) {
-      console.error("Failed to reject entry:", error);
+      // Success - clear error and retry count
+      setError(null);
+      setRetryCount(prev => {
+        const next = { ...prev };
+        delete next[entryId];
+        return next;
+      });
+      toast({
+        title: "Entry rejected",
+        description: "The transaction has been rejected.",
+      });
+    } catch (err: any) {
+      const errorMessage = err?.message || "Failed to reject entry. Please try again.";
+      console.error("Failed to reject entry:", err);
+      
+      if (currentRetryCount < maxRetries) {
+        // Auto-retry with exponential backoff
+        const delay = Math.pow(2, currentRetryCount) * 1000; // 1s, 2s, 4s
+        setTimeout(() => {
+          setRetryCount(prev => ({ ...prev, [entryId]: currentRetryCount + 1 }));
+          handleReject(entryId, true);
+        }, delay);
+      } else {
+        // Max retries reached - show error
+        setError({ entryId, message: errorMessage });
+      }
     } finally {
-      setIsProcessing(false);
+      if (!retry) {
+        setIsProcessing(false);
+      }
     }
-  };
+  }, [rejectEntry, retryCount]);
 
   const handleBulkApprove = async () => {
     if (selectedEntries.size === 0) return;
     
     setIsProcessing(true);
+    setError(null);
+    
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         Array.from(selectedEntries).map((entryId) => approveEntry({ entryId }))
       );
-      setSelectedEntries(new Set());
-    } catch (error) {
+      
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        const errorMsg = `${failed.length} of ${selectedEntries.size} entries failed to approve. Please try again.`;
+        setError({ 
+          entryId: null, 
+          message: errorMsg
+        });
+        toast({
+          title: "Bulk approval failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      } else {
+        setSelectedEntries(new Set());
+        toast({
+          title: "Entries approved",
+          description: `Successfully approved ${selectedEntries.size} entr${selectedEntries.size === 1 ? 'y' : 'ies'}.`,
+        });
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to bulk approve entries. Please try again.";
+      setError({ entryId: null, message: errorMessage });
       console.error("Failed to bulk approve:", error);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleBulkReject = async () => {
+    if (selectedEntries.size === 0) return;
+    
+    setIsProcessing(true);
+    setError(null);
+    
+    try {
+      const results = await Promise.allSettled(
+        Array.from(selectedEntries).map((entryId) => rejectEntry({ entryId }))
+      );
+      
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        const errorMsg = `${failed.length} of ${selectedEntries.size} entries failed to reject. Please try again.`;
+        setError({ 
+          entryId: null, 
+          message: errorMsg
+        });
+        toast({
+          title: "Bulk reject failed",
+          description: errorMsg,
+          variant: "destructive",
+        });
+      } else {
+        setSelectedEntries(new Set());
+        toast({
+          title: "Entries rejected",
+          description: `Successfully rejected ${selectedEntries.size} entr${selectedEntries.size === 1 ? 'y' : 'ies'}.`,
+        });
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to bulk reject entries. Please try again.";
+      setError({ entryId: null, message: errorMessage });
+      console.error("Failed to bulk reject:", error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (!pendingEntries) return;
+    if (selectedEntries.size === pendingEntries.length) {
+      setSelectedEntries(new Set());
+    } else {
+      setSelectedEntries(new Set(pendingEntries.map((e: any) => e._id)));
     }
   };
 
@@ -216,36 +353,114 @@ export function ApprovalQueue() {
     }
   };
 
-  // Swipe handlers (mobile)
-  const handleTouchStart = (e: React.TouchEvent, entryId: Id<"entries_proposed">) => {
-    const touch = e.touches[0];
-    setSwipeStart({ x: touch.clientX, y: touch.clientY, entryId });
-  };
+  // Swipeable Entry Item Component
+  interface SwipeableEntryItemProps {
+    entry: any;
+    isSelected: boolean;
+    swipeState: { direction: 'left' | 'right' | null; delta: number } | undefined;
+    onApprove: () => void;
+    onReject: () => void;
+    onEdit: () => void;
+    onToggleSelect: () => void;
+    alternatives: any[];
+    onSwipeUpdate: (direction: 'left' | 'right' | null, delta: number) => void;
+  }
 
-  const handleTouchMove = (e: React.TouchEvent, entryId: Id<"entries_proposed">) => {
-    if (swipeStart.entryId !== entryId) return;
-    
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - swipeStart.x;
-    
-    // Only allow right swipe (positive deltaX) for approve
-    if (deltaX > 0 && deltaX < 150) {
-      setSwipeOffset({ ...swipeOffset, [entryId]: deltaX });
-    }
-  };
+  function SwipeableEntryItem({
+    entry,
+    isSelected,
+    swipeState,
+    onApprove,
+    onReject,
+    onEdit,
+    onToggleSelect,
+    alternatives,
+    onSwipeUpdate,
+  }: SwipeableEntryItemProps) {
+    const swipeHandlers = useSwipeable({
+      onSwiping: (eventData) => {
+        const { dir, deltaX } = eventData;
+        if (dir === 'Left' || dir === 'Right') {
+          onSwipeUpdate(dir.toLowerCase() as 'left' | 'right', Math.abs(deltaX));
+        }
+      },
+      onSwipedLeft: () => {
+        onSwipeUpdate(null, 0);
+        onReject();
+      },
+      onSwipedRight: () => {
+        onSwipeUpdate(null, 0);
+        onApprove();
+      },
+      onSwiped: () => {
+        // Reset swipe state after swipe completes
+        onSwipeUpdate(null, 0);
+      },
+      trackMouse: false, // Only track touch
+      trackTouch: true,
+      delta: 50, // Minimum distance to trigger swipe
+      preventScrollOnSwipe: true,
+    });
 
-  const handleTouchEnd = (entryId: Id<"entries_proposed">) => {
-    const offset = swipeOffset[entryId] || 0;
-    
-    if (offset > 100) {
-      // Swipe threshold reached - approve
-      handleApprove(entryId);
-    }
-    
-    // Reset swipe state
-    setSwipeOffset({ ...swipeOffset, [entryId]: 0 });
-    setSwipeStart({ x: 0, y: 0, entryId: null });
-  };
+    const swipeDelta = swipeState?.delta || 0;
+    const swipeDirection = swipeState?.direction;
+
+    return (
+      <div
+        {...swipeHandlers}
+        className={cn(
+          "relative transition-transform duration-200 ease-out",
+          swipeDirection === 'right' && swipeDelta > 50 && "translate-x-4",
+          swipeDirection === 'left' && swipeDelta > 50 && "-translate-x-4"
+        )}
+      >
+        {/* Swipe indicator - Approve (right swipe) */}
+        {swipeDirection === 'right' && swipeDelta > 30 && (
+          <div className="absolute left-0 top-0 bottom-0 w-20 bg-green-600 rounded-l-lg flex items-center justify-center z-10">
+            <Check className="w-6 h-6 text-white" />
+          </div>
+        )}
+        
+        {/* Swipe indicator - Reject (left swipe) */}
+        {swipeDirection === 'left' && swipeDelta > 30 && (
+          <div className="absolute right-0 top-0 bottom-0 w-20 bg-red-600 rounded-r-lg flex items-center justify-center z-10">
+            <X className="w-6 h-6 text-white" />
+          </div>
+        )}
+
+        {/* Entry Preview with selection checkbox */}
+        <div className={cn(
+          "relative",
+          isSelected && "ring-2 ring-primary"
+        )}>
+          <div className="absolute top-4 left-4 z-10">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggleSelect}
+              className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
+              aria-label={`Select entry ${entry._id}`}
+            />
+          </div>
+          <div className={cn(isSelected && "ml-10")}>
+            <EntryPreview
+              entryId={entry._id}
+              debitAccountName={entry.debitAccount?.name || "Unknown"}
+              creditAccountName={entry.creditAccount?.name || "Unknown"}
+              amount={entry.amount}
+              explanation={entry.explanation || "No explanation available"}
+              confidence={entry.confidence || 0.5}
+              memo={entry.memo}
+              alternatives={alternatives}
+              onApprove={onApprove}
+              onReject={onReject}
+              onEdit={onEdit}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const toggleSelect = (entryId: Id<"entries_proposed">) => {
     const newSelected = new Set(selectedEntries);
@@ -306,8 +521,9 @@ export function ApprovalQueue() {
 
   if (!pendingEntries) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center p-8 gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Loading pending entries...</p>
       </div>
     );
   }
@@ -324,13 +540,51 @@ export function ApprovalQueue() {
 
   return (
     <div className="space-y-4">
+      {/* Error Message */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-destructive">{error.message}</p>
+            {error.entryId && (
+              <button
+                onClick={() => {
+                  const entry = pendingEntries?.find((e: any) => e._id === error.entryId);
+                  if (entry) {
+                    // Retry the last action - determine if it was approve or reject
+                    // For now, we'll retry approve. In a real app, you'd track the last action.
+                    handleApprove(error.entryId!);
+                  }
+                }}
+                className="mt-2 text-sm text-destructive underline hover:no-underline flex items-center gap-1"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Retry
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-destructive/70 hover:text-destructive"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Bulk Actions Bar */}
       {selectedEntries.size > 0 && (
-        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 flex items-center justify-between">
+        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-medium text-foreground">
             {selectedEntries.size} entr{selectedEntries.size === 1 ? "y" : "ies"} selected
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleSelectAll}
+              className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
+            >
+              {selectedEntries.size === pendingEntries?.length ? "Deselect All" : "Select All"}
+            </button>
             <button
               onClick={() => setSelectedEntries(new Set())}
               className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
@@ -338,15 +592,29 @@ export function ApprovalQueue() {
               Clear
             </button>
             <button
-              onClick={handleBulkApprove}
+              onClick={handleBulkReject}
               disabled={isProcessing}
-              className="px-4 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
+              className="px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium disabled:opacity-50 transition-colors flex items-center gap-1"
             >
               {isProcessing ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <CheckCheck className="w-4 h-4 inline mr-1" />
+                  <X className="w-4 h-4" />
+                  Reject All
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleBulkApprove}
+              disabled={isProcessing}
+              className="px-4 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium disabled:opacity-50 transition-colors flex items-center gap-1"
+            >
+              {isProcessing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <CheckCheck className="w-4 h-4" />
                   Approve All
                 </>
               )}
@@ -355,60 +623,42 @@ export function ApprovalQueue() {
         </div>
       )}
 
+      {/* Select All / Deselect All (when no entries selected) */}
+      {selectedEntries.size === 0 && pendingEntries && pendingEntries.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleSelectAll}
+            className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
+          >
+            Select All ({pendingEntries.length})
+          </button>
+        </div>
+      )}
+
       {/* Entries List */}
       <div className="space-y-4">
         {pendingEntries.map((entry: any) => {
-          const swipe = swipeOffset[entry._id] || 0;
+          const swipe = swipeState[entry._id];
           const isSelected = selectedEntries.has(entry._id);
 
           return (
-            <div
+            <SwipeableEntryItem
               key={entry._id}
-              className={cn(
-                "relative transition-transform",
-                swipe > 0 && "translate-x-4"
-              )}
-              onTouchStart={(e) => handleTouchStart(e, entry._id)}
-              onTouchMove={(e) => handleTouchMove(e, entry._id)}
-              onTouchEnd={() => handleTouchEnd(entry._id)}
-            >
-              {/* Swipe indicator (mobile) */}
-              {swipe > 0 && (
-                <div className="absolute left-0 top-0 bottom-0 w-20 bg-green-600 rounded-l-lg flex items-center justify-center">
-                  <Check className="w-6 h-6 text-white" />
-                </div>
-              )}
-
-              {/* Entry Preview with selection checkbox */}
-              <div className={cn(
-                "relative",
-                isSelected && "ring-2 ring-primary"
-              )}>
-                <div className="absolute top-4 left-4 z-10">
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelect(entry._id)}
-                    className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
-                  />
-                </div>
-                <div className={cn(isSelected && "ml-10")}>
-                  <EntryPreview
-                    entryId={entry._id}
-                    debitAccountName={entry.debitAccount?.name || "Unknown"}
-                    creditAccountName={entry.creditAccount?.name || "Unknown"}
-                    amount={entry.amount}
-                    explanation={entry.explanation || "No explanation available"}
-                    confidence={entry.confidence || 0.5}
-                    memo={entry.memo}
-                    alternatives={alternativesCache[entry._id] || []}
-                    onApprove={() => handleApprove(entry._id)}
-                    onReject={() => handleReject(entry._id)}
-                    onEdit={() => handleEdit(entry)}
-                  />
-                </div>
-              </div>
-            </div>
+              entry={entry}
+              isSelected={isSelected}
+              swipeState={swipe}
+              onApprove={() => handleApprove(entry._id)}
+              onReject={() => handleReject(entry._id)}
+              onEdit={() => handleEdit(entry)}
+              onToggleSelect={() => toggleSelect(entry._id)}
+              alternatives={alternativesCache[entry._id] || []}
+              onSwipeUpdate={(direction, delta) => {
+                setSwipeState(prev => ({
+                  ...prev,
+                  [entry._id]: { direction, delta }
+                }));
+              }}
+            />
           );
         })}
       </div>

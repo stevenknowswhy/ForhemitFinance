@@ -28,7 +28,7 @@ export function Sidebar() {
         <h2 className="text-2xl font-bold">Dashboard</h2>
       </div>
       <nav className="px-4 space-y-1" aria-label="Main navigation">
-        {navigation.map((item) => {
+        {navigation.map((item: any) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           

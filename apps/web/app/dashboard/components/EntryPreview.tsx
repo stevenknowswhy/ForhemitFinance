@@ -8,7 +8,7 @@
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Check, X, Edit2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, Edit2, AlertCircle, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -60,21 +60,31 @@ export function EntryPreview({
       ? "text-yellow-600 dark:text-yellow-400"
       : "text-red-600 dark:text-red-400";
 
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const handleApprove = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     try {
       await approveEntry({ entryId });
       onApprove?.();
     } catch (error) {
       console.error("Failed to approve entry:", error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleReject = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     try {
       await rejectEntry({ entryId });
       onReject?.();
     } catch (error) {
       console.error("Failed to reject entry:", error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -201,13 +211,19 @@ export function EntryPreview({
       <div className="flex items-center gap-2 pt-2 border-t border-border">
         <button
           onClick={handleApprove}
+          disabled={isProcessing}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors",
             "bg-green-600 hover:bg-green-700 text-white",
-            "dark:bg-green-500 dark:hover:bg-green-600"
+            "dark:bg-green-500 dark:hover:bg-green-600",
+            "disabled:opacity-50 disabled:cursor-not-allowed"
           )}
         >
-          <Check className="w-4 h-4" />
+          {isProcessing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Check className="w-4 h-4" />
+          )}
           Approve
         </button>
         <button
@@ -223,13 +239,19 @@ export function EntryPreview({
         </button>
         <button
           onClick={handleReject}
+          disabled={isProcessing}
           className={cn(
             "flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors",
-            "border border-red-500/50 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400"
+            "border border-red-500/50 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400",
+            "disabled:opacity-50 disabled:cursor-not-allowed"
           )}
           title="Reject entry"
         >
-          <X className="w-4 h-4" />
+          {isProcessing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <X className="w-4 h-4" />
+          )}
           <span className="hidden sm:inline">Reject</span>
         </button>
       </div>

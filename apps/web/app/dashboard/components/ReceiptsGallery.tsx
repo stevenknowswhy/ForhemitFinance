@@ -41,7 +41,7 @@ export function ReceiptsGallery({ receipts, transactionId }: ReceiptsGalleryProp
   return (
     <>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-        {receipts.map((receipt, idx) => {
+        {receipts.map((receipt: any, idx: number) => {
           const fileUrl = getFileUrl(receipt);
           const image = isImage(receipt);
 

@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Receipt, BookOpen, Settings, BarChart3 } from "lucide-react";
+import { Home, Receipt, FileText, Settings, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function BottomNavigation() {
@@ -30,9 +30,9 @@ export function BottomNavigation() {
       icon: BarChart3,
     },
     {
-      href: "/stories",
-      label: "Stories",
-      icon: BookOpen,
+      href: "/reports",
+      label: "Reports",
+      icon: FileText,
     },
     {
       href: "/settings",
@@ -44,13 +44,13 @@ export function BottomNavigation() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 lg:hidden">
       <div className="flex items-center justify-around h-16 px-2">
-        {navItems.map((item) => {
+        {navItems.map((item: any) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || 
             (item.href === "/dashboard" && pathname === "/dashboard") ||
             (item.href === "/analytics" && pathname === "/analytics") ||
             (item.href === "/transactions" && pathname === "/transactions") ||
-            (item.href === "/stories" && pathname === "/stories") ||
+            (item.href === "/reports" && pathname?.startsWith("/reports")) ||
             (item.href === "/settings" && pathname === "/settings");
           
           return (

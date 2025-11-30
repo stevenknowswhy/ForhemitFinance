@@ -228,3 +228,246 @@ export const updatePreferences = mutation({
   },
 });
 
+/**
+ * Add a custom category to user's category list
+ */
+export const addCustomCategory = mutation({
+  args: {
+    category: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const preferences = { ...user.preferences };
+    const customCategories = preferences.customCategories || [];
+    
+    // Add category if it doesn't already exist (case-insensitive)
+    const categoryLower = args.category.toLowerCase();
+    if (!customCategories.some(cat => cat.toLowerCase() === categoryLower)) {
+      customCategories.push(args.category);
+      preferences.customCategories = customCategories;
+      await ctx.db.patch(user._id, { preferences });
+    }
+
+    return { success: true, categories: customCategories };
+  },
+});
+
+/**
+ * Complete app refresh - deletes all user data and resets to defaults
+ * This includes: transactions, accounts, entries, receipts, addresses, 
+ * business profiles, professional contacts, goals, budgets, AI insights, institutions
+ * WARNING: This action cannot be undone!
+ */
+export const refreshApp = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.email) {
+      throw new Error("Not authenticated or email not found");
+    }
+
+    const email = identity.email;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const userId = user._id;
+    const stats = {
+      transactions: 0,
+      accounts: 0,
+      proposedEntries: 0,
+      finalEntries: 0,
+      entryLines: 0,
+      receipts: 0,
+      addresses: 0,
+      businessProfiles: 0,
+      professionalContacts: 0,
+      goals: 0,
+      budgets: 0,
+      aiInsights: 0,
+      institutions: 0,
+    };
+
+    // Delete all proposed entries first (they reference transactions)
+    const allProposedEntries = await ctx.db
+      .query("entries_proposed")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const entry of allProposedEntries) {
+      await ctx.db.delete(entry._id);
+      stats.proposedEntries++;
+    }
+
+    // Delete all transactions and associated data
+    const transactions = await ctx.db
+      .query("transactions_raw")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const transaction of transactions) {
+      // Delete associated receipts
+      if (transaction.receiptIds && transaction.receiptIds.length > 0) {
+        for (const receiptId of transaction.receiptIds) {
+          await ctx.db.delete(receiptId);
+          stats.receipts++;
+        }
+      }
+
+      await ctx.db.delete(transaction._id);
+      stats.transactions++;
+    }
+
+    // Delete all final entries and their entry lines
+    const finalEntries = await ctx.db
+      .query("entries_final")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const entry of finalEntries) {
+      // Delete entry lines
+      const entryLines = await ctx.db
+        .query("entry_lines")
+        .withIndex("by_entry", (q) => q.eq("entryId", entry._id))
+        .collect();
+      
+      for (const line of entryLines) {
+        await ctx.db.delete(line._id);
+        stats.entryLines++;
+      }
+
+      await ctx.db.delete(entry._id);
+      stats.finalEntries++;
+    }
+
+    // Delete all remaining receipts (in case any weren't linked to transactions)
+    const allReceipts = await ctx.db
+      .query("receipts")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const receipt of allReceipts) {
+      await ctx.db.delete(receipt._id);
+      stats.receipts++;
+    }
+
+    // Delete all accounts
+    const accounts = await ctx.db
+      .query("accounts")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const account of accounts) {
+      await ctx.db.delete(account._id);
+      stats.accounts++;
+    }
+
+    // Delete all addresses
+    const addresses = await ctx.db
+      .query("addresses")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const address of addresses) {
+      await ctx.db.delete(address._id);
+      stats.addresses++;
+    }
+
+    // Delete business profiles
+    const businessProfiles = await ctx.db
+      .query("business_profiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const profile of businessProfiles) {
+      await ctx.db.delete(profile._id);
+      stats.businessProfiles++;
+    }
+
+    // Delete professional contacts
+    const professionalContacts = await ctx.db
+      .query("professional_contacts")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const contact of professionalContacts) {
+      await ctx.db.delete(contact._id);
+      stats.professionalContacts++;
+    }
+
+    // Delete goals
+    const goals = await ctx.db
+      .query("goals")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const goal of goals) {
+      await ctx.db.delete(goal._id);
+      stats.goals++;
+    }
+
+    // Delete budgets
+    const budgets = await ctx.db
+      .query("budgets")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const budget of budgets) {
+      await ctx.db.delete(budget._id);
+      stats.budgets++;
+    }
+
+    // Delete AI insights
+    const aiInsights = await ctx.db
+      .query("ai_insights")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const insight of aiInsights) {
+      await ctx.db.delete(insight._id);
+      stats.aiInsights++;
+    }
+
+    // Delete institutions (Plaid connections)
+    const institutions = await ctx.db
+      .query("institutions")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    for (const institution of institutions) {
+      await ctx.db.delete(institution._id);
+      stats.institutions++;
+    }
+
+    // Reset user preferences to defaults (but keep user record)
+    await ctx.db.patch(userId, {
+      preferences: {
+        defaultCurrency: "USD",
+        aiInsightLevel: "medium",
+        notificationsEnabled: true,
+      },
+      businessType: undefined,
+    });
+
+    return { success: true, stats };
+  },
+});
+

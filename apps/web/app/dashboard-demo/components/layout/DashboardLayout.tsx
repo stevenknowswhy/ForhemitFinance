@@ -3,7 +3,7 @@
 import { ReactNode, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
-import { DashboardData } from "../../data/mockData";
+import { DashboardData } from "@tests/mocks/data/dashboard-mock-data";
 import { MetricType } from "../filters/MetricSelector";
 
 interface DashboardLayoutProps {

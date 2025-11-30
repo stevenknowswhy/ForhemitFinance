@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { X, Upload, Image as ImageIcon, Loader2, Check, AlertCircle } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { UploadButton } from "@/lib/uploadthing";
@@ -32,6 +32,7 @@ export function ReceiptUploadModal({
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
   const createReceipt = useMutation(api.transactions.createReceipt);
+  const processReceiptOCR = useAction(api.receipt_ocr.processReceiptOCR);
   const currentUser = useQuery(api.users.getCurrentUser);
 
   const handleUploadComplete = async (res: Array<{
@@ -81,6 +82,15 @@ export function ReceiptUploadModal({
           storageUrl: serverData.fileUrl,
         });
         receiptUrls.push(serverData.fileUrl);
+
+        // Trigger OCR processing (async, don't wait)
+        processReceiptOCR({
+          receiptUrl: serverData.fileUrl,
+          receiptId: receiptId,
+        }).catch((error) => {
+          console.error("OCR processing failed:", error);
+          // Don't block upload if OCR fails
+        });
       }
 
       setUploadedFiles((prev) => [...prev, ...res]);

@@ -11,11 +11,12 @@ import { useUser } from "@clerk/nextjs";
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { DesktopNavigation } from "../components/DesktopNavigation";
-import MockPlaidLink from "../components/MockPlaidLink";
+import MockPlaidLink from "@tests/mocks/components/MockPlaidLink";
 import { DashboardCard } from "./components/DashboardCard";
 import { AddTransactionButton } from "./components/AddTransactionButton";
 import { BottomNavigation } from "../components/BottomNavigation";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
@@ -37,7 +38,10 @@ export default function DashboardPage() {
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
       </div>
     );
   }
@@ -52,7 +56,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 lg:pb-8">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-background pb-20 lg:pb-8">
       {/* Mobile Header - Hidden on desktop */}
       <div className="lg:hidden sticky top-0 z-40 bg-background border-b border-border">
         <div className="flex items-center justify-between p-4">
@@ -71,7 +76,22 @@ export default function DashboardPage() {
 
       <div className="max-w-7xl mx-auto p-4 md:p-8">
         {/* Simplified Dashboard - 3 Essential Cards */}
-        {mockAnalytics && (
+        {!mockAnalytics ? (
+          <div className="mb-8">
+            <div className="mb-6">
+              <div className="h-8 bg-muted rounded w-64 mb-2 animate-pulse" />
+              <div className="h-4 bg-muted rounded w-48 animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-card border border-border rounded-lg p-6 animate-pulse">
+                  <div className="h-4 bg-muted rounded w-1/2 mb-4" />
+                  <div className="h-8 bg-muted rounded w-1/3" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
           <div className="mb-8">
             <div className="mb-6">
               <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
@@ -120,6 +140,7 @@ export default function DashboardPage() {
       
       {/* Bottom Navigation (Mobile only) */}
       <BottomNavigation />
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

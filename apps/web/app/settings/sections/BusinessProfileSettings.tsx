@@ -15,8 +15,6 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Building2, FileText, Users, MapPin, Award, TrendingUp, Plus, Trash2, Edit2, Check, X, Upload, Image as ImageIcon } from "lucide-react";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { UploadButton } from "@/lib/uploadthing";
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
 
 export function BusinessProfileSettings() {
   const { toast } = useToast();
@@ -130,7 +128,7 @@ export function BusinessProfileSettings() {
 
   const handleRemoveOwner = (id: string) => {
     if (owners.length > 1) {
-      setOwners(owners.filter(owner => owner.id !== id));
+      setOwners(owners.filter((owner: any) => owner.id !== id));
     } else {
       toast({
         title: "Cannot remove",
@@ -169,7 +167,7 @@ export function BusinessProfileSettings() {
       });
       return;
     }
-    setProducts(products.map(p => 
+    setProducts(products.map((p: any) => 
       p.id === id ? { ...p, name: editingProductName.trim(), isEditing: false } : p
     ));
     setEditingProductId(null);
@@ -180,9 +178,9 @@ export function BusinessProfileSettings() {
     const product = products.find(p => p.id === id);
     if (product && !product.name) {
       // If it was a new product with no name, remove it
-      setProducts(products.filter(p => p.id !== id));
+      setProducts(products.filter((p: any) => p.id !== id));
     } else {
-      setProducts(products.map(p => 
+      setProducts(products.map((p: any) => 
         p.id === id ? { ...p, isEditing: false } : p
       ));
     }
@@ -191,7 +189,7 @@ export function BusinessProfileSettings() {
   };
 
   const handleDeleteProduct = (id: string) => {
-    setProducts(products.filter(p => p.id !== id));
+    setProducts(products.filter((p: any) => p.id !== id));
     toast({
       title: "Product removed",
       description: "The product/service has been removed.",
@@ -199,7 +197,7 @@ export function BusinessProfileSettings() {
   };
 
   const handleOwnerChange = (id: string, field: keyof Owner, value: string) => {
-    setOwners(owners.map(owner => 
+    setOwners(owners.map((owner: any) => 
       owner.id === id ? { ...owner, [field]: value } : owner
     ));
   };
@@ -236,7 +234,7 @@ export function BusinessProfileSettings() {
       setFundingStatus(businessProfile.fundingStatus || "");
       setStageOfBusiness(businessProfile.stageOfBusiness || "");
       if (businessProfile.owners && businessProfile.owners.length > 0) {
-        setOwners(businessProfile.owners.map((o, idx) => ({
+        setOwners(businessProfile.owners.map((o: any, idx: number) => ({
           id: idx.toString(),
           name: o.name,
           ownershipPercentage: o.ownershipPercentage || "",
@@ -260,7 +258,7 @@ export function BusinessProfileSettings() {
       setWorkModel(businessProfile.workModel || "");
       setBusinessDescription(businessProfile.businessDescription || "");
       if (businessProfile.products) {
-        setProducts(businessProfile.products.map((p, idx) => ({
+        setProducts(businessProfile.products.map((p: any, idx: number) => ({
           id: idx.toString(),
           name: p,
         })));
@@ -347,7 +345,7 @@ export function BusinessProfileSettings() {
         averageMonthlyRevenue: averageMonthlyRevenue ? parseFloat(averageMonthlyRevenue) : undefined,
         fundingStatus: fundingStatus || undefined,
         stageOfBusiness: stageOfBusiness || undefined,
-        owners: owners.filter(o => o.name).map(o => ({
+        owners: owners.filter((o: any) => o.name).map((o: any) => ({
           name: o.name,
           ownershipPercentage: o.ownershipPercentage || undefined,
           linkedIn: o.linkedIn || undefined,
@@ -368,7 +366,7 @@ export function BusinessProfileSettings() {
         independentContractors: independentContractors ? parseInt(independentContractors) : undefined,
         workModel: workModel as "remote" | "hybrid" | "on_site" | undefined,
         businessDescription: businessDescription || undefined,
-        products: products.map(p => p.name).filter(Boolean),
+        products: products.map((p: any) => p.name).filter(Boolean),
         womanOwned: womanOwned || undefined,
         minorityOwned: minorityOwned || undefined,
         veteranOwned: veteranOwned || undefined,
@@ -399,6 +397,81 @@ export function BusinessProfileSettings() {
 
   return (
     <div className="space-y-4 py-4">
+      {/* Business Logo / Branding - Prominent Section */}
+      <Card className="mb-6 border-2 border-primary/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="w-5 h-5 text-primary" />
+            Business Logo & Branding
+          </CardTitle>
+          <CardDescription>
+            Upload your business logo to appear on all financial reports and documents. Recommended: Square logo (200x200px or larger), PNG or SVG format.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+              {businessIcon ? (
+                <div className="relative">
+                  <img
+                    src={businessIcon}
+                    alt="Business logo"
+                    className="w-32 h-32 object-contain border-2 border-border rounded-lg bg-muted p-4 shadow-sm"
+                  />
+                  <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1">
+                    <Check className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+              ) : (
+                <div className="w-32 h-32 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/50 flex items-center justify-center">
+                  <ImageIcon className="w-12 h-12 text-muted-foreground/50" />
+                </div>
+              )}
+              <div className="flex-1 space-y-3">
+                <div>
+                  <UploadButton
+                    endpoint="businessIconUploader"
+                    input={{
+                      userId: currentUser?._id || "",
+                    }}
+                    onClientUploadComplete={handleIconUploadComplete}
+                    onUploadError={handleIconUploadError}
+                    onUploadBegin={() => setIsUploadingIcon(true)}
+                    className="ut-button:bg-primary ut-button:text-primary-foreground ut-button:hover:bg-primary/90 ut-button:rounded-md ut-button:px-4 ut-button:py-2"
+                  />
+                  {isUploadingIcon && (
+                    <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+                      <span className="animate-spin">⏳</span> Uploading logo...
+                    </p>
+                  )}
+                </div>
+                {businessIcon && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setBusinessIcon("");
+                      toast({
+                        title: "Logo removed",
+                        description: "The logo will be removed when you save your profile.",
+                      });
+                    }}
+                    className="gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    Remove Logo
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Your logo will appear on the cover page of all financial reports, including Bank/Lender Application Snapshots, Investor Summaries, and other generated documents.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Core Business Identity */}
       <Accordion type="multiple" className="w-full space-y-2">
         <AccordionItem value="core-identity" className="border border-gray-200 dark:border-gray-700 rounded-md px-4">
@@ -409,56 +482,6 @@ export function BusinessProfileSettings() {
             </div>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-4">
-            {/* Business Icon Upload */}
-            <div className="space-y-2 md:col-span-2">
-              <Label>Business Icon / Logo</Label>
-              <p className="text-sm text-muted-foreground mb-3">
-                Upload your business or website icon. This will be used for branding on reports and documents.
-              </p>
-              <div className="flex items-center gap-4">
-                {businessIcon && (
-                  <div className="relative">
-                    <img
-                      src={businessIcon}
-                      alt="Business icon"
-                      className="w-24 h-24 object-contain border border-border rounded-lg bg-muted p-2"
-                    />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <UploadButton
-                    endpoint="businessIconUploader"
-                    input={{
-                      userId: currentUser?._id || "",
-                    }}
-                    onClientUploadComplete={handleIconUploadComplete}
-                    onUploadError={handleIconUploadError}
-                    onUploadBegin={() => setIsUploadingIcon(true)}
-                    className="ut-button:bg-primary ut-button:text-primary-foreground ut-button:hover:bg-primary/90"
-                  />
-                  {isUploadingIcon && (
-                    <p className="text-sm text-muted-foreground mt-2">Uploading...</p>
-                  )}
-                  {businessIcon && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setBusinessIcon("");
-                        toast({
-                          title: "Icon removed",
-                          description: "The icon will be removed when you save.",
-                        });
-                      }}
-                      className="mt-2"
-                    >
-                      Remove Icon
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1099,7 +1122,7 @@ export function BusinessProfileSettings() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {products.map((product) => (
+                    {products.map((product: any) => (
                       <div
                         key={product.id}
                         className="flex items-center gap-2 p-2 border rounded-md hover:bg-muted/50 transition-colors"

@@ -2,6 +2,8 @@
  * Utility functions to process transaction data for charts
  */
 
+import { parseLocalDate } from "@/lib/dateUtils";
+
 interface Transaction {
   _id: string;
   amount: number;
@@ -40,9 +42,9 @@ export function generateCashFlowData(
   // Filter transactions if needed
   let filteredTransactions = transactions;
   if (filterType === "business") {
-    filteredTransactions = transactions.filter(t => t.isBusiness === true);
+    filteredTransactions = transactions.filter((t: any) => t.isBusiness === true);
   } else if (filterType === "personal") {
-    filteredTransactions = transactions.filter(t => t.isBusiness === false);
+    filteredTransactions = transactions.filter((t: any) => t.isBusiness === false);
   }
 
   const now = new Date();
@@ -58,10 +60,11 @@ export function generateCashFlowData(
   }
 
   // Process transactions
-  filteredTransactions.forEach((transaction) => {
-    const date = new Date(
-      transaction.dateTimestamp || transaction.date
-    );
+  filteredTransactions.forEach((transaction: any) => {
+    // Parse date as local date to avoid timezone issues
+    const date = typeof transaction.dateTimestamp === 'number'
+      ? new Date(transaction.dateTimestamp)
+      : parseLocalDate(transaction.date);
     const dateKey = date.toISOString().split("T")[0];
     
     if (data[dateKey]) {
@@ -91,7 +94,7 @@ export function generateCategoryData(
     return [];
   }
 
-  return analytics.topCategories.map((cat) => ({
+  return analytics.topCategories.map((cat: any) => ({
     name: cat.category || "Uncategorized",
     value: cat.amount,
   }));
@@ -112,9 +115,9 @@ export function generateMonthlyIncomeVsExpenses(
   // Filter transactions if needed
   let filteredTransactions = transactions;
   if (filterType === "business") {
-    filteredTransactions = transactions.filter(t => t.isBusiness === true);
+    filteredTransactions = transactions.filter((t: any) => t.isBusiness === true);
   } else if (filterType === "personal") {
-    filteredTransactions = transactions.filter(t => t.isBusiness === false);
+    filteredTransactions = transactions.filter((t: any) => t.isBusiness === false);
   }
 
   const now = new Date();
@@ -131,10 +134,11 @@ export function generateMonthlyIncomeVsExpenses(
   }
 
   // Process transactions
-  filteredTransactions.forEach((transaction) => {
-    const date = new Date(
-      transaction.dateTimestamp || transaction.date
-    );
+  filteredTransactions.forEach((transaction: any) => {
+    // Parse date as local date to avoid timezone issues
+    const date = typeof transaction.dateTimestamp === 'number'
+      ? new Date(transaction.dateTimestamp)
+      : parseLocalDate(transaction.date);
     const monthKey = date.toLocaleDateString("en-US", {
       month: "short",
       year: "numeric",
@@ -172,17 +176,17 @@ export function generateMonthlyTrends(
   // Filter transactions if needed
   let filteredTransactions = transactions;
   if (filterType === "business") {
-    filteredTransactions = transactions.filter(t => t.isBusiness === true);
+    filteredTransactions = transactions.filter((t: any) => t.isBusiness === true);
   } else if (filterType === "personal") {
-    filteredTransactions = transactions.filter(t => t.isBusiness === false);
+    filteredTransactions = transactions.filter((t: any) => t.isBusiness === false);
   }
 
   // Filter accounts if needed
   let filteredAccounts = accounts;
   if (filterType === "business") {
-    filteredAccounts = accounts?.filter(a => a.isBusiness === true);
+    filteredAccounts = accounts?.filter((a: any) => a.isBusiness === true);
   } else if (filterType === "personal") {
-    filteredAccounts = accounts?.filter(a => a.isBusiness === false);
+    filteredAccounts = accounts?.filter((a: any) => a.isBusiness === false);
   }
 
   const now = new Date();
@@ -193,7 +197,7 @@ export function generateMonthlyTrends(
 
   // Calculate total balance
   const totalBalance =
-    filteredAccounts?.reduce((sum, acc) => sum + (acc.balance || 0), 0) || 0;
+    filteredAccounts?.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0) || 0;
 
   // Initialize last 6 months
   for (let i = 5; i >= 0; i--) {
@@ -207,15 +211,24 @@ export function generateMonthlyTrends(
 
   // Process transactions backwards to calculate running balance
   const sortedTransactions = [...filteredTransactions].sort(
-    (a, b) =>
-      new Date(b.dateTimestamp || b.date).getTime() -
-      new Date(a.dateTimestamp || a.date).getTime()
+    (a, b) => {
+      const dateA = typeof a.dateTimestamp === 'number'
+        ? a.dateTimestamp
+        : parseLocalDate(a.date).getTime();
+      const dateB = typeof b.dateTimestamp === 'number'
+        ? b.dateTimestamp
+        : parseLocalDate(b.date).getTime();
+      return dateB - dateA;
+    }
   );
 
   let runningBalance = totalBalance;
 
-  sortedTransactions.forEach((transaction) => {
-    const date = new Date(transaction.dateTimestamp || transaction.date);
+  sortedTransactions.forEach((transaction: any) => {
+    // Parse date as local date to avoid timezone issues
+    const date = typeof transaction.dateTimestamp === 'number'
+      ? new Date(transaction.dateTimestamp)
+      : parseLocalDate(transaction.date);
     const monthKey = date.toLocaleDateString("en-US", {
       month: "short",
       year: "numeric",

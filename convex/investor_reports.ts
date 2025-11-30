@@ -165,14 +165,14 @@ export const generateCashFlow = query({
     // Calculate starting balance
     const startingBalance = await calculateCashBalance(
       ctx,
-      cashAccounts.map((a) => a._id),
+      cashAccounts.map((a: any) => a._id),
       args.startDate
     );
 
     // Calculate ending balance
     const endingBalance = await calculateCashBalance(
       ctx,
-      cashAccounts.map((a) => a._id),
+      cashAccounts.map((a: any) => a._id),
       args.endDate
     );
 

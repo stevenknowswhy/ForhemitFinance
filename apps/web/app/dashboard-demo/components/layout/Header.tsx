@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/app/components/ThemeToggle";
 import { DateRangePicker } from "../filters/DateRangePicker";
 import { MetricSelector, type MetricType } from "../filters/MetricSelector";
 import { ExportButton } from "../filters/ExportButton";
-import { DashboardData } from "../../data/mockData";
+import { DashboardData } from "@tests/mocks/data/dashboard-mock-data";
 
 interface HeaderProps {
   onRefresh?: () => void;

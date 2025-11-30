@@ -77,7 +77,7 @@ export default function OnboardingPage() {
                 What type of business are you running?
               </label>
               <div className="space-y-2">
-                {BUSINESS_TYPES.map((type) => (
+                {BUSINESS_TYPES.map((type: any) => (
                   <label
                     key={type.value}
                     className="flex items-center p-4 border border-border rounded-lg cursor-pointer hover:bg-muted transition-colors bg-background"

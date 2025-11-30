@@ -2,6 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Print Styles for Reports */
+@media print {
+  @page {
+    margin: 15mm;
+    size: A4;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  .print\\:block {
+    display: block !important;
+  }
+
+  .print\\:max-w-full {
+    max-width: 100% !important;
+  }
+
+  .print\\:max-h-none {
+    max-height: none !important;
+  }
+
+  .print\\:p-4 {
+    padding: 1rem !important;
+  }
+
+  .print\\:pb-2 {
+    padding-bottom: 0.5rem !important;
+  }
+
+  .print\\:text-2xl {
+    font-size: 1.5rem !important;
+  }
+
+  .print\\:text-base {
+    font-size: 1rem !important;
+  }
+
+  .print\\:text-xs {
+    font-size: 0.75rem !important;
+  }
+
+  .print\\:text-lg {
+    font-size: 1.125rem !important;
+  }
+
+  .print\\:mb-2 {
+    margin-bottom: 0.5rem !important;
+  }
+
+  .print\\:mt-1 {
+    margin-top: 0.25rem !important;
+  }
+
+  .print\\:space-y-4 {
+    gap: 1rem !important;
+  }
+
+  .print\\:space-y-6 {
+    gap: 1.5rem !important;
+  }
+
+  .print\\:border-0 {
+    border: 0 !important;
+  }
+
+  .print\\:shadow-none {
+    box-shadow: none !important;
+  }
+
+  .print\\:border-t {
+    border-top: 1px solid #000 !important;
+  }
+
+  .print\\:pt-3 {
+    padding-top: 0.75rem !important;
+  }
+
+  .print\\:page-break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print\\:page-break-after-always {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

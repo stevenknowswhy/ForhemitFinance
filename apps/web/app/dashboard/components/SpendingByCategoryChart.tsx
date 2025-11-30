@@ -78,7 +78,7 @@ export function SpendingByCategoryChart({ data }: SpendingByCategoryChartProps) 
           />
           <Legend
             formatter={(value, entry: any) => {
-              const total = chartData.reduce((sum, item) => sum + item.value, 0);
+              const total = chartData.reduce((sum: number, item: any) => sum + item.value, 0);
               const percent = ((entry.payload.value / total) * 100).toFixed(1);
               return `${value} (${percent}%)`;
             }}

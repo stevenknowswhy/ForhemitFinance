@@ -26,7 +26,7 @@ export const getByInstitution = query({
     return await ctx.db
       .query("accounts")
       .withIndex("by_user", (q) => q.eq("userId", institution.userId))
-      .filter((q) => q.eq(q.field("institutionId"), args.institutionId))
+      .filter((q: any) => q.eq(q.field("institutionId"), args.institutionId))
       .collect();
   },
 });

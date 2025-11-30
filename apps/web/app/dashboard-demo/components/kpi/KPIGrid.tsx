@@ -1,6 +1,6 @@
 "use client";
 
-import { KPIData } from "../../data/mockData";
+import { KPIData } from "@tests/mocks/data/dashboard-mock-data";
 import { KPICard } from "./KPICard";
 
 interface KPIGridProps {
@@ -52,7 +52,7 @@ export function KPIGrid({ data }: KPIGridProps) {
 KPIGrid.Skeleton = function KPIGridSkeleton() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {[1, 2, 3, 4].map((i) => (
+      {[1, 2, 3, 4].map((i: any) => (
         <div
           key={i}
           className="h-32 bg-muted animate-pulse rounded-lg"

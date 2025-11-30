@@ -57,7 +57,7 @@ export function DateRangePicker({
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute top-full mt-2 z-20 bg-card border border-border rounded-lg shadow-lg min-w-[200px]">
-            {PRESET_RANGES.map((range) => (
+            {PRESET_RANGES.map((range: any) => (
               <button
                 key={range.label}
                 onClick={() => handleRangeSelect(range)}

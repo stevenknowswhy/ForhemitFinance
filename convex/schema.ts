@@ -75,6 +75,8 @@ export default defineSchema({
         v.literal("technical")
       )),
       confidenceThreshold: v.optional(v.number()), // 0-100
+      // Custom categories created by user or AI
+      customCategories: v.optional(v.array(v.string())),
     }),
     createdAt: v.number(),
   })
@@ -93,6 +95,12 @@ export default defineSchema({
       v.literal("error"),
       v.literal("disconnected")
     ),
+    lastError: v.optional(v.object({
+      type: v.string(),
+      code: v.string(),
+      message: v.string(),
+      timestamp: v.number(),
+    })),
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
@@ -152,6 +160,25 @@ export default defineSchema({
     ),
     receiptUrl: v.optional(v.string()),
     receiptIds: v.optional(v.array(v.id("receipts"))),
+    // Entry mode: simple or advanced (itemized)
+    entryMode: v.optional(v.union(
+      v.literal("simple"),
+      v.literal("advanced")
+    )),
+    // Double entry accounts for simple mode
+    debitAccountId: v.optional(v.id("accounts")),
+    creditAccountId: v.optional(v.id("accounts")),
+    // Line items for advanced/itemized transactions
+    lineItems: v.optional(v.array(v.object({
+      description: v.string(),
+      category: v.optional(v.string()),
+      amount: v.number(),
+      tax: v.optional(v.number()),
+      tip: v.optional(v.number()),
+      // Double entry accounts for each line item
+      debitAccountId: v.optional(v.id("accounts")),
+      creditAccountId: v.optional(v.id("accounts")),
+    }))),
     // Mock transaction fields
     transactionId: v.optional(v.string()), // Unique transaction ID for mock
     transactionType: v.optional(v.union(
@@ -160,6 +187,8 @@ export default defineSchema({
     )),
     merchantName: v.optional(v.string()),
     categoryName: v.optional(v.string()), // Single category name for mock
+    isRemoved: v.optional(v.boolean()), // Marked as removed by Plaid webhook
+    removedAt: v.optional(v.number()), // Timestamp when removed
     location: v.optional(v.object({
       city: v.string(),
       state: v.string(),
@@ -462,5 +491,32 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_type", ["userId", "contactType"])
     .index("by_user_category", ["userId", "category"]),
+
+  // Knowledge Base for AI Learning
+  categorization_knowledge: defineTable({
+    userId: v.id("users"),
+    // Pattern matching
+    merchant: v.optional(v.string()), // Merchant name pattern
+    description: v.optional(v.string()), // Description pattern
+    // User corrections
+    originalCategory: v.optional(v.string()), // What AI suggested
+    correctedCategory: v.string(), // What user changed it to
+    originalDebitAccountId: v.optional(v.id("accounts")), // What AI suggested
+    correctedDebitAccountId: v.optional(v.id("accounts")), // What user changed it to
+    originalCreditAccountId: v.optional(v.id("accounts")), // What AI suggested
+    correctedCreditAccountId: v.optional(v.id("accounts")), // What user changed it to
+    // Additional context
+    userDescription: v.optional(v.string()), // Additional description user provided
+    // Metadata
+    transactionType: v.union(v.literal("expense"), v.literal("income")),
+    isBusiness: v.boolean(),
+    confidence: v.optional(v.number()), // AI confidence when correction was made
+    usageCount: v.number(), // How many times this pattern has been used
+    lastUsedAt: v.number(), // Last time this pattern was applied
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_merchant", ["userId", "merchant"])
+    .index("by_user_category", ["userId", "correctedCategory"]),
 });
 

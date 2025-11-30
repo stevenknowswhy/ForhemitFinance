@@ -177,8 +177,8 @@ export default function AnalyticsPage() {
   // Calculate runway (months until $0 at current burn rate)
   const businessRunway = useMemo(() => {
     if (!businessBurnRate || businessBurnRate === 0) return null;
-    const businessAccounts = mockAccounts?.filter(a => a.isBusiness === true) || [];
-    const totalBalance = businessAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+    const businessAccounts = mockAccounts?.filter((a: any) => a.isBusiness === true) || [];
+    const totalBalance = businessAccounts.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
     if (totalBalance <= 0) return null;
     const months = totalBalance / businessBurnRate;
     return Math.floor(months);
@@ -190,13 +190,13 @@ export default function AnalyticsPage() {
       return {
         transactions: businessTransactions || [],
         analytics: businessAnalytics,
-        accounts: mockAccounts?.filter(a => a.isBusiness === true) || [],
+        accounts: mockAccounts?.filter((a: any) => a.isBusiness === true) || [],
       };
     } else if (activeTab === "personal") {
       return {
         transactions: personalTransactions || [],
         analytics: personalAnalytics,
-        accounts: mockAccounts?.filter(a => a.isBusiness === false) || [],
+        accounts: mockAccounts?.filter((a: any) => a.isBusiness === false) || [],
       };
     } else {
       // Blended view
@@ -217,7 +217,7 @@ export default function AnalyticsPage() {
       // For blended, we need to combine business and personal
       const businessTx = businessTransactions || [];
       const personalTx = personalTransactions || [];
-      let combinedTx = [];
+      let combinedTx: typeof businessTx = [];
       
       if (showBusinessInBlended && showPersonalInBlended) {
         combinedTx = [...businessTx, ...personalTx];
@@ -252,7 +252,10 @@ export default function AnalyticsPage() {
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
       </div>
     );
   }

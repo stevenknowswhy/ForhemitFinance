@@ -1,6 +1,6 @@
 "use client";
 
-import { ActivityItem } from "../../data/mockData";
+import { ActivityItem } from "@tests/mocks/data/dashboard-mock-data";
 import { cn } from "@/lib/utils";
 
 interface DataTableProps {

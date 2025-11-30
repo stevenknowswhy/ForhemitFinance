@@ -77,7 +77,7 @@ export function IntegrationsSettings() {
 
   const handleToggle = (id: string, connected: boolean) => {
     setIntegrations(
-      integrations.map((int) =>
+      integrations.map((int: any) =>
         int.id === id ? { ...int, connected: !connected } : int
       )
     );
@@ -108,7 +108,7 @@ export function IntegrationsSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {integrations.map((integration) => (
+          {integrations.map((integration: any) => (
             <div
               key={integration.id}
               className="flex items-center justify-between p-4 border rounded-lg"

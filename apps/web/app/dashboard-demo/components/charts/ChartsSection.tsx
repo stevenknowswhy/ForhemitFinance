@@ -1,6 +1,6 @@
 "use client";
 
-import { DashboardData } from "../../data/mockData";
+import { DashboardData } from "@tests/mocks/data/dashboard-mock-data";
 import { LineChart } from "./LineChart";
 import { AreaChart } from "./AreaChart";
 import { BarChart } from "./BarChart";

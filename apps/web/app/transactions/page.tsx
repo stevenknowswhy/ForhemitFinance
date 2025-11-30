@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Id } from "../../convex/_generated/dataModel";
+import { useToast } from "@/lib/use-toast";
+import { formatTransactionDate, parseLocalDate } from "@/lib/dateUtils";
 
 export default function TransactionsPage() {
   const { user, isLoaded } = useUser();
@@ -58,9 +60,12 @@ export default function TransactionsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<Id<"transactions_raw"> | null>(null);
   const [showReceiptUpload, setShowReceiptUpload] = useState<Id<"transactions_raw"> | null>(null);
   const [showReceiptViewer, setShowReceiptViewer] = useState<Id<"transactions_raw"> | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   const updateTransaction = useMutation(api.transactions.updateTransaction);
   const deleteTransaction = useMutation(api.transactions.deleteTransaction);
+  const { toast } = useToast();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -103,7 +108,7 @@ export default function TransactionsPage() {
         const merchant = (t.merchantName || t.merchant || t.description || "").toLowerCase();
         const description = (t.description || "").toLowerCase();
         const category = (t.categoryName || (t.category && t.category[0]) || t.merchant || "Uncategorized").toLowerCase();
-        const date = new Date(t.dateTimestamp || t.date).toLocaleDateString().toLowerCase();
+        const date = formatTransactionDate(t.dateTimestamp || t.date).toLowerCase();
         return merchant.includes(query) || description.includes(query) || category.includes(query) || date.includes(query);
       });
     }
@@ -126,7 +131,10 @@ export default function TransactionsPage() {
     // Date range filter
     if (dateRange.start || dateRange.end) {
       filtered = filtered.filter((t: any) => {
-        const txDate = new Date(t.dateTimestamp || t.date);
+        // Parse date as local date to avoid timezone issues
+        const txDate = typeof t.dateTimestamp === 'number' 
+          ? new Date(t.dateTimestamp)
+          : parseLocalDate(t.date);
         if (dateRange.start && txDate < dateRange.start) return false;
         if (dateRange.end) {
           const endDate = new Date(dateRange.end);
@@ -154,10 +162,26 @@ export default function TransactionsPage() {
     return filtered;
   }, [mockTransactions, searchQuery, filterType, selectedCategory, dateRange, sortDirection, businessFilter]);
 
+  // Pagination
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    return filteredTransactions.slice(start, end);
+  }, [filteredTransactions, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterType, selectedCategory, dateRange, sortDirection, businessFilter]);
+
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
       </div>
     );
   }
@@ -291,7 +315,7 @@ export default function TransactionsPage() {
                   >
                     All Categories
                   </button>
-                  {allCategories.map((cat) => (
+                  {allCategories.map((cat: any) => (
                     <button
                       key={cat}
                       onClick={() => {
@@ -351,7 +375,7 @@ export default function TransactionsPage() {
             </div>
           )}
 
-          {filteredTransactions.length > 0 && filteredTransactions.map((transaction: any) => (
+          {paginatedTransactions.length > 0 && paginatedTransactions.map((transaction: any) => (
             <div key={transaction._id} className="p-4 hover:bg-muted/50 transition-colors group">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
@@ -378,7 +402,7 @@ export default function TransactionsPage() {
                   </div>
                   <div className="text-sm text-muted-foreground truncate">{transaction.description}</div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {new Date(transaction.dateTimestamp || transaction.date).toLocaleDateString()} • {transaction.categoryName || (transaction.category && transaction.category[0]) || transaction.merchant || "Uncategorized"}
+                    {formatTransactionDate(transaction.dateTimestamp || transaction.date)} • {transaction.categoryName || (transaction.category && transaction.category[0]) || transaction.merchant || "Uncategorized"}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 ml-4">
@@ -422,6 +446,69 @@ export default function TransactionsPage() {
             </div>
           ))}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-4 border-t border-border">
+            <div className="text-sm text-muted-foreground">
+              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredTransactions.length)} of {filteredTransactions.length} transactions
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={cn(
+                  "px-3 py-1.5 text-sm rounded-lg border transition-colors",
+                  currentPage === 1
+                    ? "border-border bg-background text-muted-foreground opacity-50 cursor-not-allowed"
+                    : "border-border bg-background text-foreground hover:bg-muted"
+                )}
+              >
+                Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={cn(
+                        "w-8 h-8 text-sm rounded-lg border transition-colors",
+                        currentPage === pageNum
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-foreground hover:bg-muted"
+                      )}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className={cn(
+                  "px-3 py-1.5 text-sm rounded-lg border transition-colors",
+                  currentPage === totalPages
+                    ? "border-border bg-background text-muted-foreground opacity-50 cursor-not-allowed"
+                    : "border-border bg-background text-foreground hover:bg-muted"
+                )}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Universal "+" Button */}
@@ -442,8 +529,17 @@ export default function TransactionsPage() {
                 ...updates,
               });
               setEditingTransaction(null);
-            } catch (error) {
+              toast({
+                title: "Transaction updated",
+                description: "The transaction has been updated successfully.",
+              });
+            } catch (error: any) {
               console.error("Failed to update transaction:", error);
+              toast({
+                title: "Update failed",
+                description: error?.message || "Failed to update transaction. Please try again.",
+                variant: "destructive",
+              });
             }
           }}
         />
@@ -458,8 +554,17 @@ export default function TransactionsPage() {
             try {
               await deleteTransaction({ transactionId: showDeleteConfirm });
               setShowDeleteConfirm(null);
-            } catch (error) {
+              toast({
+                title: "Transaction deleted",
+                description: "The transaction has been deleted successfully.",
+              });
+            } catch (error: any) {
               console.error("Failed to delete transaction:", error);
+              toast({
+                title: "Delete failed",
+                description: error?.message || "Failed to delete transaction. Please try again.",
+                variant: "destructive",
+              });
             }
           }}
         />
@@ -504,7 +609,9 @@ function EditTransactionModal({
   const [date, setDate] = useState(
     transaction.dateTimestamp
       ? new Date(transaction.dateTimestamp).toISOString().split("T")[0]
-      : new Date(transaction.date).toISOString().split("T")[0]
+      : typeof transaction.date === 'string' 
+        ? transaction.date // Already in YYYY-MM-DD format
+        : new Date(transaction.date).toISOString().split("T")[0]
   );
   const [category, setCategory] = useState(
     transaction.categoryName || (transaction.category && transaction.category[0]) || transaction.merchant || ""
