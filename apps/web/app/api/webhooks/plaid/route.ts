@@ -161,8 +161,10 @@ async function handleTransactionsWebhook(
           `Removing ${removed_transactions.length} transactions for item ${item_id}`
         );
 
-        // Mark transactions as removed in Convex
-        await convex.mutation(api.transactions.removePlaidTransactions, {
+        // Mark transactions as removed in Convex using action
+        // This doesn't require user authentication - it looks up the user by itemId
+        await convex.action(api.transactions.removePlaidTransactionsByItemId, {
+          itemId: item_id,
           plaidTransactionIds: removed_transactions,
         });
       }

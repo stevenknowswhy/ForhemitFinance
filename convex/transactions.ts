@@ -3,7 +3,7 @@
  */
 
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation, action } from "./_generated/server";
 import { api } from "./_generated/api";
 
 /**
@@ -664,6 +664,7 @@ export const findSimilarTransactions = query({
 
 /**
  * Remove Plaid transactions (called when webhook reports transactions removed)
+ * This is the authenticated version for client-side use
  */
 export const removePlaidTransactions = mutation({
   args: {
@@ -716,6 +717,85 @@ export const removePlaidTransactions = mutation({
     }
 
     return { success: true, removedCount: args.plaidTransactionIds.length };
+  },
+});
+
+/**
+ * Remove Plaid transactions (internal mutation for webhooks)
+ * This version doesn't require user authentication - it looks up the user by itemId
+ */
+export const removePlaidTransactionsInternal = internalMutation({
+  args: {
+    itemId: v.string(), // Plaid item_id from webhook
+    plaidTransactionIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Find institution by Plaid item ID to get the userId
+    const institution = await ctx.db
+      .query("institutions")
+      .withIndex("by_plaid_item", (q) => q.eq("plaidItemId", args.itemId))
+      .first();
+
+    if (!institution) {
+      throw new Error(`Institution not found for Plaid item ${args.itemId}`);
+    }
+
+    const userId = institution.userId;
+
+    // Find and mark transactions as removed
+    let removedCount = 0;
+    for (const plaidId of args.plaidTransactionIds) {
+      const transaction = await ctx.db
+        .query("transactions_raw")
+        .withIndex("by_plaid_id", (q) => q.eq("plaidTransactionId", plaidId))
+        .first();
+
+      if (transaction && transaction.userId === userId) {
+        // Mark as removed (don't delete, keep for audit trail)
+        await ctx.db.patch(transaction._id, {
+          isRemoved: true,
+          removedAt: Date.now(),
+        });
+
+        // Also mark any associated proposed entries as removed
+        const proposedEntries = await ctx.db
+          .query("entries_proposed")
+          .withIndex("by_transaction", (q) => q.eq("transactionId", transaction._id))
+          .collect();
+
+        for (const entry of proposedEntries) {
+          if (entry.status === "pending") {
+            await ctx.db.patch(entry._id, {
+              status: "rejected",
+            });
+          }
+        }
+        removedCount++;
+      }
+    }
+
+    return { success: true, removedCount };
+  },
+});
+
+/**
+ * Remove Plaid transactions (action for webhooks)
+ * This action can be called from webhook handlers via ConvexHttpClient
+ * It wraps the internal mutation which doesn't require user authentication
+ */
+export const removePlaidTransactionsByItemId = action({
+  args: {
+    itemId: v.string(), // Plaid item_id from webhook
+    plaidTransactionIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Call the internal mutation which handles authentication via itemId lookup
+    await ctx.runMutation(api.transactions.removePlaidTransactionsInternal, {
+      itemId: args.itemId,
+      plaidTransactionIds: args.plaidTransactionIds,
+    });
+
+    return { success: true };
   },
 });
 
