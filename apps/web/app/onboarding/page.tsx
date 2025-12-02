@@ -7,11 +7,11 @@
 
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { Header } from "../components/Header";
 import { useOrgIdOptional } from "../hooks/useOrgId";
-import { useOrgContext } from "../contexts/OrgContext";
+import { useOrg } from "../contexts/OrgContext";
 
 const BUSINESS_TYPES = [
   { value: "creator", label: "Creator (Video, Design, Writing, Coaching)" },
@@ -33,7 +33,7 @@ export default function OnboardingPage() {
   const [justCompleted, setJustCompleted] = useState(false);
   const [completedOrgId, setCompletedOrgId] = useState<string | null>(null);
   const { orgId } = useOrgIdOptional(); // Check if org exists (source of truth)
-  const { setCurrentOrg } = useOrgContext(); // To manually set org after creation
+  const { setCurrentOrg } = useOrg(); // To manually set org after creation
 
   // Redirect if already onboarded (use useEffect to avoid render-time navigation)
   // Check orgId first (source of truth), then onboarding status

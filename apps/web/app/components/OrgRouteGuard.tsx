@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useOrgContext } from "../contexts/OrgContext";
+import { useOrg } from "../contexts/OrgContext";
 import { useUser } from "@clerk/nextjs";
 
 interface OrgRouteGuardProps {
@@ -18,7 +18,7 @@ export function OrgRouteGuard({
   children,
   redirectTo = "/onboarding",
 }: OrgRouteGuardProps) {
-  const { currentOrgId, userOrganizations, isLoading } = useOrgContext();
+  const { currentOrgId, userOrganizations, isLoading } = useOrg();
   const { isLoaded: isClerkLoaded } = useUser();
   const router = useRouter();
 

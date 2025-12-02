@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/nextjs";
 import { ThemeToggle } from "./ThemeToggle";
 import { OrgSwitcher } from "./OrgSwitcher";
+import { NotificationBell } from "./NotificationBell";
 
 export function DesktopNavigation() {
   const pathname = usePathname();
@@ -78,6 +79,7 @@ export function DesktopNavigation() {
 
       {user && (
         <div className="ml-auto flex items-center gap-3">
+          <NotificationBell />
           <OrgSwitcher />
           <ThemeToggle />
           <div className="text-sm text-muted-foreground">

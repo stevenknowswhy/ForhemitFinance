@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useOrgContext } from "../contexts/OrgContext";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { useOrg } from "../contexts/OrgContext";
+import { Id } from "convex/_generated/dataModel";
 import {
   Select,
   SelectContent,
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 
 export function OrgSwitcher() {
-  const { currentOrgId, userOrganizations, setCurrentOrg, isLoading } = useOrgContext();
+  const { currentOrgId, userOrganizations, setCurrentOrg, isLoading } = useOrg();
   const [isChanging, setIsChanging] = useState(false);
 
   if (isLoading) {

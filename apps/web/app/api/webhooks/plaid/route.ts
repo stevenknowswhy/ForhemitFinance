@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../../../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import crypto from "crypto";
 
 function getConvexClient() {

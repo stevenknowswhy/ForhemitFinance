@@ -9,7 +9,7 @@ import { Suspense } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import { DesktopNavigation } from "../components/DesktopNavigation";
 import { BottomNavigation } from "../components/BottomNavigation";
 import { ReportsSidebar } from "./components/ReportsSidebar";

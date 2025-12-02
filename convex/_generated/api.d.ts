@@ -24,6 +24,7 @@ import type * as knowledge_base from "../knowledge_base.js";
 import type * as memberships from "../memberships.js";
 import type * as migrations_phase1_multi_tenant from "../migrations/phase1_multi_tenant.js";
 import type * as mock_data from "../mock_data.js";
+import type * as notifications from "../notifications.js";
 import type * as onboarding from "../onboarding.js";
 import type * as organizations from "../organizations.js";
 import type * as permissions from "../permissions.js";
@@ -63,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   memberships: typeof memberships;
   "migrations/phase1_multi_tenant": typeof migrations_phase1_multi_tenant;
   mock_data: typeof mock_data;
+  notifications: typeof notifications;
   onboarding: typeof onboarding;
   organizations: typeof organizations;
   permissions: typeof permissions;

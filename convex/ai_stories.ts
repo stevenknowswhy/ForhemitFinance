@@ -7,7 +7,7 @@
  */
 
 import { v } from "convex/values";
-import { action, mutation, query, internalMutation } from "./_generated/server";
+import { action, mutation, query, internalMutation, internalAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
@@ -19,33 +19,33 @@ interface FinancialData {
   periodStart: number;
   periodEnd: number;
   periodType: "monthly" | "quarterly" | "annually";
-  
+
   // Revenue and expenses
   revenue: number;
   expenses: number;
   netIncome: number;
-  
+
   // Cash flow
   cashFlow: number;
   startingCash: number;
   endingCash: number;
-  
+
   // Business metrics
   burnRate: number;
   runway: number; // months
-  
+
   // Debt metrics
   debtToIncome: number;
   debtToRevenue: number;
-  
+
   // Growth metrics
   growthRate: number;
   revenueGrowth: number;
-  
+
   // Category breakdowns
   revenueByCategory: Array<{ category: string; amount: number }>;
   expensesByCategory: Array<{ category: string; amount: number }>;
-  
+
   // Monthly/quarterly breakdowns
   periodBreakdown: Array<{
     period: string;
@@ -53,22 +53,22 @@ interface FinancialData {
     expenses: number;
     netIncome: number;
   }>;
-  
+
   // Account balances
   accountBalances: Array<{ accountName: string; balance: number; type: string }>;
-  
+
   // Transaction counts
   transactionCount: number;
   incomeTransactionCount: number;
   expenseTransactionCount: number;
-  
+
   // Trends
   monthOverMonthChange: {
     revenue: number;
     expenses: number;
     netIncome: number;
   };
-  
+
   // Business context
   businessType?: string;
   businessEntityType?: string;
@@ -104,345 +104,345 @@ export const aggregateFinancialDataQuery = query({
     const periodEnd = args.periodEnd;
     const periodType = args.periodType;
 
-  const businessProfile = await ctx.db
-    .query("business_profiles")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .first();
+    const businessProfile = await ctx.db
+      .query("business_profiles")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
+      .first();
 
-  // Get all accounts
-  const accounts = await ctx.db
-    .query("accounts")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .collect();
-
-  // Get all entries for the period
-  const allEntries = await ctx.db
-    .query("entries_final")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .collect();
-
-  const periodEntries = allEntries.filter(
-    (e: any) => e.date >= periodStart && e.date <= periodEnd
-  );
-
-  // Get entry lines for period entries
-  const entryLines: any[] = [];
-  for (const entry of periodEntries) {
-    const lines = await ctx.db
-      .query("entry_lines")
-      .withIndex("by_entry", (q: any) => q.eq("entryId", (entry as any)._id))
+    // Get all accounts
+    const accounts = await ctx.db
+      .query("accounts")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
       .collect();
-    entryLines.push(...lines);
-  }
 
-  // Calculate revenue (income accounts - credits)
-  let revenue = 0;
-  const incomeAccounts = accounts.filter((a: any) => a.type === "income");
-  for (const account of incomeAccounts) {
-    for (const line of entryLines) {
-      if (
-        (line as any).accountId === (account as any)._id &&
-        (line as any).side === "credit" &&
-        (line as any).amount
-      ) {
-        revenue += (line as any).amount;
-      }
-    }
-  }
-
-  // Calculate expenses (expense accounts - debits)
-  let expenses = 0;
-  const expenseAccounts = accounts.filter((a: any) => a.type === "expense");
-  for (const account of expenseAccounts) {
-    for (const line of entryLines) {
-      if (
-        (line as any).accountId === (account as any)._id &&
-        (line as any).side === "debit" &&
-        (line as any).amount
-      ) {
-        expenses += (line as any).amount;
-      }
-    }
-  }
-
-  const netIncome = revenue - expenses;
-
-  // Calculate cash flow (asset accounts)
-  let startingCash = 0;
-  let endingCash = 0;
-  const assetAccounts = accounts.filter((a: any) => a.type === "asset");
-
-  // Starting balance (before period)
-  const entriesBeforePeriod = allEntries.filter((e: any) => e.date < periodStart);
-  const linesBeforePeriod: any[] = [];
-  for (const entry of entriesBeforePeriod) {
-    const lines = await ctx.db
-      .query("entry_lines")
-      .withIndex("by_entry", (q: any) => q.eq("entryId", (entry as any)._id))
+    // Get all entries for the period
+    const allEntries = await ctx.db
+      .query("entries_final")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
       .collect();
-    linesBeforePeriod.push(...lines);
-  }
 
-  for (const account of assetAccounts) {
-    for (const line of linesBeforePeriod) {
-      if ((line as any).accountId === (account as any)._id) {
-        if ((line as any).side === "debit") {
-          startingCash += (line as any).amount;
-        } else {
-          startingCash -= (line as any).amount;
-        }
-      }
+    const periodEntries = allEntries.filter(
+      (e: any) => e.date >= periodStart && e.date <= periodEnd
+    );
+
+    // Get entry lines for period entries
+    const entryLines: any[] = [];
+    for (const entry of periodEntries) {
+      const lines = await ctx.db
+        .query("entry_lines")
+        .withIndex("by_entry", (q: any) => q.eq("entryId", (entry as any)._id))
+        .collect();
+      entryLines.push(...lines);
     }
-  }
 
-  // Ending balance (including period)
-  for (const account of assetAccounts) {
-    for (const line of entryLines) {
-      if ((line as any).accountId === (account as any)._id) {
-        if ((line as any).side === "debit") {
-          endingCash += (line as any).amount;
-        } else {
-          endingCash -= (line as any).amount;
-        }
-      }
-    }
-  }
-  endingCash = startingCash + (endingCash - startingCash);
-
-  const cashFlow = endingCash - startingCash;
-
-  // Calculate burn rate (for expenses > revenue)
-  const monthlyBurn = expenses / (periodType === "monthly" ? 1 : periodType === "quarterly" ? 3 : 12);
-  const burnRate = netIncome < 0 ? Math.abs(monthlyBurn) : 0;
-  const runway = endingCash > 0 && burnRate > 0 ? endingCash / burnRate : 0;
-
-  // Calculate debt metrics
-  const liabilityAccounts = accounts.filter((a: any) => a.type === "liability");
-  let totalDebt = 0;
-  for (const account of liabilityAccounts) {
-    for (const line of entryLines) {
-      if ((line as any).accountId === (account as any)._id && (line as any).side === "credit") {
-        totalDebt += (line as any).amount;
-      }
-    }
-  }
-  const debtToIncome = revenue > 0 ? totalDebt / revenue : 0;
-  const debtToRevenue = revenue > 0 ? totalDebt / revenue : 0;
-
-  // Calculate growth (compare to previous period)
-  const previousPeriodStart = periodStart - (periodEnd - periodStart);
-  const previousPeriodEnd = periodStart;
-  const previousEntries = allEntries.filter(
-    (e: any) => e.date >= previousPeriodStart && e.date < previousPeriodEnd
-  );
-
-  let previousRevenue = 0;
-  let previousExpenses = 0;
-  const previousLines: any[] = [];
-  for (const entry of previousEntries) {
-    const lines = await ctx.db
-      .query("entry_lines")
-      .withIndex("by_entry", (q: any) => q.eq("entryId", (entry as any)._id))
-      .collect();
-    previousLines.push(...lines);
-  }
-
-  for (const account of incomeAccounts) {
-    for (const line of previousLines) {
-      if ((line as any).accountId === (account as any)._id && (line as any).side === "credit") {
-        previousRevenue += (line as any).amount;
-      }
-    }
-  }
-
-  for (const account of expenseAccounts) {
-    for (const line of previousLines) {
-      if ((line as any).accountId === (account as any)._id && (line as any).side === "debit") {
-        previousExpenses += (line as any).amount;
-      }
-    }
-  }
-
-  const revenueGrowth =
-    previousRevenue > 0 ? ((revenue - previousRevenue) / previousRevenue) * 100 : 0;
-  const growthRate = revenueGrowth;
-
-  // Category breakdowns
-  const revenueByCategory: Record<string, number> = {};
-  const expensesByCategory: Record<string, number> = {};
-
-  for (const account of incomeAccounts) {
-    let accountRevenue = 0;
-    for (const line of entryLines) {
-      if ((line as any).accountId === (account as any)._id && (line as any).side === "credit") {
-        accountRevenue += (line as any).amount;
-      }
-    }
-    if (accountRevenue > 0) {
-      revenueByCategory[account.name] = accountRevenue;
-    }
-  }
-
-  for (const account of expenseAccounts) {
-    let accountExpenses = 0;
-    for (const line of entryLines) {
-      if ((line as any).accountId === (account as any)._id && (line as any).side === "debit") {
-        accountExpenses += (line as any).amount;
-      }
-    }
-    if (accountExpenses > 0) {
-      expensesByCategory[account.name] = accountExpenses;
-    }
-  }
-
-  const revenueByCategoryArray = Object.entries(revenueByCategory)
-    .map(([category, amount]) => ({ category, amount }))
-    .sort((a, b) => b.amount - a.amount);
-
-  const expensesByCategoryArray = Object.entries(expensesByCategory)
-    .map(([category, amount]) => ({ category, amount }))
-    .sort((a, b) => b.amount - a.amount);
-
-  // Period breakdown (monthly for quarterly/annual, weekly for monthly)
-  const periodBreakdown: Array<{
-    period: string;
-    revenue: number;
-    expenses: number;
-    netIncome: number;
-  }> = [];
-
-  if (periodType === "monthly") {
-    // Weekly breakdown for monthly
-    const weeks = 4;
-    const weekDuration = (periodEnd - periodStart) / weeks;
-    for (let i = 0; i < weeks; i++) {
-      const weekStart = periodStart + i * weekDuration;
-      const weekEnd = periodStart + (i + 1) * weekDuration;
-      const weekEntries = periodEntries.filter(
-        (e: any) => e.date >= weekStart && e.date < weekEnd
-      );
-      // Calculate week totals (simplified)
-      periodBreakdown.push({
-        period: `Week ${i + 1}`,
-        revenue: revenue / weeks,
-        expenses: expenses / weeks,
-        netIncome: netIncome / weeks,
-      });
-    }
-  } else if (periodType === "quarterly") {
-    // Monthly breakdown for quarterly
-    const months = 3;
-    const monthDuration = (periodEnd - periodStart) / months;
-    for (let i = 0; i < months; i++) {
-      const monthStart = periodStart + i * monthDuration;
-      const monthEnd = periodStart + (i + 1) * monthDuration;
-      periodBreakdown.push({
-        period: `Month ${i + 1}`,
-        revenue: revenue / months,
-        expenses: expenses / months,
-        netIncome: netIncome / months,
-      });
-    }
-  } else {
-    // Quarterly breakdown for annual
-    const quarters = 4;
-    for (let i = 0; i < quarters; i++) {
-      periodBreakdown.push({
-        period: `Q${i + 1}`,
-        revenue: revenue / quarters,
-        expenses: expenses / quarters,
-        netIncome: netIncome / quarters,
-      });
-    }
-  }
-
-  // Account balances
-  const accountBalances = accounts.map((account: any) => {
-    let balance = 0;
-    for (const line of entryLines) {
-      if ((line as any).accountId === account._id) {
+    // Calculate revenue (income accounts - credits)
+    let revenue = 0;
+    const incomeAccounts = accounts.filter((a: any) => a.type === "income");
+    for (const account of incomeAccounts) {
+      for (const line of entryLines) {
         if (
-          (account.type === "asset" || account.type === "expense") &&
-          (line as any).side === "debit"
+          (line as any).accountId === (account as any)._id &&
+          (line as any).side === "credit" &&
+          (line as any).amount
         ) {
-          balance += (line as any).amount;
-        } else if (
-          (account.type === "liability" ||
-            account.type === "equity" ||
-            account.type === "income") &&
-          (line as any).side === "credit"
-        ) {
-          balance += (line as any).amount;
-        } else {
-          balance -= (line as any).amount;
+          revenue += (line as any).amount;
         }
       }
     }
-    return {
-      accountName: account.name,
-      balance,
-      type: account.type,
-    };
-  });
 
-  // Transaction counts
-  const transactions = await ctx.db
-    .query("transactions_raw")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .collect();
+    // Calculate expenses (expense accounts - debits)
+    let expenses = 0;
+    const expenseAccounts = accounts.filter((a: any) => a.type === "expense");
+    for (const account of expenseAccounts) {
+      for (const line of entryLines) {
+        if (
+          (line as any).accountId === (account as any)._id &&
+          (line as any).side === "debit" &&
+          (line as any).amount
+        ) {
+          expenses += (line as any).amount;
+        }
+      }
+    }
 
-  const periodTransactions = transactions.filter((t: any) => {
-    const transactionDate = t.dateTimestamp || new Date(t.date).getTime();
-    return transactionDate >= periodStart && transactionDate <= periodEnd;
-  });
+    const netIncome = revenue - expenses;
 
-  const incomeTransactionCount = periodTransactions.filter(
-    (t: any) => t.amount > 0
-  ).length;
-  const expenseTransactionCount = periodTransactions.filter(
-    (t: any) => t.amount < 0
-  ).length;
+    // Calculate cash flow (asset accounts)
+    let startingCash = 0;
+    let endingCash = 0;
+    const assetAccounts = accounts.filter((a: any) => a.type === "asset");
 
-  // Month-over-month change
-  const monthOverMonthChange = {
-    revenue: previousRevenue > 0 ? ((revenue - previousRevenue) / previousRevenue) * 100 : 0,
-    expenses: previousExpenses > 0 ? ((expenses - previousExpenses) / previousExpenses) * 100 : 0,
-    netIncome:
-      previousRevenue - previousExpenses !== 0
-        ? ((netIncome - (previousRevenue - previousExpenses)) /
+    // Starting balance (before period)
+    const entriesBeforePeriod = allEntries.filter((e: any) => e.date < periodStart);
+    const linesBeforePeriod: any[] = [];
+    for (const entry of entriesBeforePeriod) {
+      const lines = await ctx.db
+        .query("entry_lines")
+        .withIndex("by_entry", (q: any) => q.eq("entryId", (entry as any)._id))
+        .collect();
+      linesBeforePeriod.push(...lines);
+    }
+
+    for (const account of assetAccounts) {
+      for (const line of linesBeforePeriod) {
+        if ((line as any).accountId === (account as any)._id) {
+          if ((line as any).side === "debit") {
+            startingCash += (line as any).amount;
+          } else {
+            startingCash -= (line as any).amount;
+          }
+        }
+      }
+    }
+
+    // Ending balance (including period)
+    for (const account of assetAccounts) {
+      for (const line of entryLines) {
+        if ((line as any).accountId === (account as any)._id) {
+          if ((line as any).side === "debit") {
+            endingCash += (line as any).amount;
+          } else {
+            endingCash -= (line as any).amount;
+          }
+        }
+      }
+    }
+    endingCash = startingCash + (endingCash - startingCash);
+
+    const cashFlow = endingCash - startingCash;
+
+    // Calculate burn rate (for expenses > revenue)
+    const monthlyBurn = expenses / (periodType === "monthly" ? 1 : periodType === "quarterly" ? 3 : 12);
+    const burnRate = netIncome < 0 ? Math.abs(monthlyBurn) : 0;
+    const runway = endingCash > 0 && burnRate > 0 ? endingCash / burnRate : 0;
+
+    // Calculate debt metrics
+    const liabilityAccounts = accounts.filter((a: any) => a.type === "liability");
+    let totalDebt = 0;
+    for (const account of liabilityAccounts) {
+      for (const line of entryLines) {
+        if ((line as any).accountId === (account as any)._id && (line as any).side === "credit") {
+          totalDebt += (line as any).amount;
+        }
+      }
+    }
+    const debtToIncome = revenue > 0 ? totalDebt / revenue : 0;
+    const debtToRevenue = revenue > 0 ? totalDebt / revenue : 0;
+
+    // Calculate growth (compare to previous period)
+    const previousPeriodStart = periodStart - (periodEnd - periodStart);
+    const previousPeriodEnd = periodStart;
+    const previousEntries = allEntries.filter(
+      (e: any) => e.date >= previousPeriodStart && e.date < previousPeriodEnd
+    );
+
+    let previousRevenue = 0;
+    let previousExpenses = 0;
+    const previousLines: any[] = [];
+    for (const entry of previousEntries) {
+      const lines = await ctx.db
+        .query("entry_lines")
+        .withIndex("by_entry", (q: any) => q.eq("entryId", (entry as any)._id))
+        .collect();
+      previousLines.push(...lines);
+    }
+
+    for (const account of incomeAccounts) {
+      for (const line of previousLines) {
+        if ((line as any).accountId === (account as any)._id && (line as any).side === "credit") {
+          previousRevenue += (line as any).amount;
+        }
+      }
+    }
+
+    for (const account of expenseAccounts) {
+      for (const line of previousLines) {
+        if ((line as any).accountId === (account as any)._id && (line as any).side === "debit") {
+          previousExpenses += (line as any).amount;
+        }
+      }
+    }
+
+    const revenueGrowth =
+      previousRevenue > 0 ? ((revenue - previousRevenue) / previousRevenue) * 100 : 0;
+    const growthRate = revenueGrowth;
+
+    // Category breakdowns
+    const revenueByCategory: Record<string, number> = {};
+    const expensesByCategory: Record<string, number> = {};
+
+    for (const account of incomeAccounts) {
+      let accountRevenue = 0;
+      for (const line of entryLines) {
+        if ((line as any).accountId === (account as any)._id && (line as any).side === "credit") {
+          accountRevenue += (line as any).amount;
+        }
+      }
+      if (accountRevenue > 0) {
+        revenueByCategory[account.name] = accountRevenue;
+      }
+    }
+
+    for (const account of expenseAccounts) {
+      let accountExpenses = 0;
+      for (const line of entryLines) {
+        if ((line as any).accountId === (account as any)._id && (line as any).side === "debit") {
+          accountExpenses += (line as any).amount;
+        }
+      }
+      if (accountExpenses > 0) {
+        expensesByCategory[account.name] = accountExpenses;
+      }
+    }
+
+    const revenueByCategoryArray = Object.entries(revenueByCategory)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const expensesByCategoryArray = Object.entries(expensesByCategory)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // Period breakdown (monthly for quarterly/annual, weekly for monthly)
+    const periodBreakdown: Array<{
+      period: string;
+      revenue: number;
+      expenses: number;
+      netIncome: number;
+    }> = [];
+
+    if (periodType === "monthly") {
+      // Weekly breakdown for monthly
+      const weeks = 4;
+      const weekDuration = (periodEnd - periodStart) / weeks;
+      for (let i = 0; i < weeks; i++) {
+        const weekStart = periodStart + i * weekDuration;
+        const weekEnd = periodStart + (i + 1) * weekDuration;
+        const weekEntries = periodEntries.filter(
+          (e: any) => e.date >= weekStart && e.date < weekEnd
+        );
+        // Calculate week totals (simplified)
+        periodBreakdown.push({
+          period: `Week ${i + 1}`,
+          revenue: revenue / weeks,
+          expenses: expenses / weeks,
+          netIncome: netIncome / weeks,
+        });
+      }
+    } else if (periodType === "quarterly") {
+      // Monthly breakdown for quarterly
+      const months = 3;
+      const monthDuration = (periodEnd - periodStart) / months;
+      for (let i = 0; i < months; i++) {
+        const monthStart = periodStart + i * monthDuration;
+        const monthEnd = periodStart + (i + 1) * monthDuration;
+        periodBreakdown.push({
+          period: `Month ${i + 1}`,
+          revenue: revenue / months,
+          expenses: expenses / months,
+          netIncome: netIncome / months,
+        });
+      }
+    } else {
+      // Quarterly breakdown for annual
+      const quarters = 4;
+      for (let i = 0; i < quarters; i++) {
+        periodBreakdown.push({
+          period: `Q${i + 1}`,
+          revenue: revenue / quarters,
+          expenses: expenses / quarters,
+          netIncome: netIncome / quarters,
+        });
+      }
+    }
+
+    // Account balances
+    const accountBalances = accounts.map((account: any) => {
+      let balance = 0;
+      for (const line of entryLines) {
+        if ((line as any).accountId === account._id) {
+          if (
+            (account.type === "asset" || account.type === "expense") &&
+            (line as any).side === "debit"
+          ) {
+            balance += (line as any).amount;
+          } else if (
+            (account.type === "liability" ||
+              account.type === "equity" ||
+              account.type === "income") &&
+            (line as any).side === "credit"
+          ) {
+            balance += (line as any).amount;
+          } else {
+            balance -= (line as any).amount;
+          }
+        }
+      }
+      return {
+        accountName: account.name,
+        balance,
+        type: account.type,
+      };
+    });
+
+    // Transaction counts
+    const transactions = await ctx.db
+      .query("transactions_raw")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
+      .collect();
+
+    const periodTransactions = transactions.filter((t: any) => {
+      const transactionDate = t.dateTimestamp || new Date(t.date).getTime();
+      return transactionDate >= periodStart && transactionDate <= periodEnd;
+    });
+
+    const incomeTransactionCount = periodTransactions.filter(
+      (t: any) => t.amount > 0
+    ).length;
+    const expenseTransactionCount = periodTransactions.filter(
+      (t: any) => t.amount < 0
+    ).length;
+
+    // Month-over-month change
+    const monthOverMonthChange = {
+      revenue: previousRevenue > 0 ? ((revenue - previousRevenue) / previousRevenue) * 100 : 0,
+      expenses: previousExpenses > 0 ? ((expenses - previousExpenses) / previousExpenses) * 100 : 0,
+      netIncome:
+        previousRevenue - previousExpenses !== 0
+          ? ((netIncome - (previousRevenue - previousExpenses)) /
             Math.abs(previousRevenue - previousExpenses)) *
           100
-        : 0,
-  };
+          : 0,
+    };
 
-  return {
-    periodStart,
-    periodEnd,
-    periodType,
-    revenue,
-    expenses,
-    netIncome,
-    cashFlow,
-    startingCash,
-    endingCash,
-    burnRate,
-    runway,
-    debtToIncome,
-    debtToRevenue,
-    growthRate,
-    revenueGrowth,
-    revenueByCategory: revenueByCategoryArray,
-    expensesByCategory: expensesByCategoryArray,
-    periodBreakdown,
-    accountBalances,
-    transactionCount: periodTransactions.length,
-    incomeTransactionCount,
-    expenseTransactionCount,
-    monthOverMonthChange,
-    businessType: user.businessType,
-    businessEntityType: businessProfile?.entityType,
-    accountingMethod: user.preferences.accountingMethod || "cash",
-  };
+    return {
+      periodStart,
+      periodEnd,
+      periodType,
+      revenue,
+      expenses,
+      netIncome,
+      cashFlow,
+      startingCash,
+      endingCash,
+      burnRate,
+      runway,
+      debtToIncome,
+      debtToRevenue,
+      growthRate,
+      revenueGrowth,
+      revenueByCategory: revenueByCategoryArray,
+      expensesByCategory: expensesByCategoryArray,
+      periodBreakdown,
+      accountBalances,
+      transactionCount: periodTransactions.length,
+      incomeTransactionCount,
+      expenseTransactionCount,
+      monthOverMonthChange,
+      businessType: user.businessType,
+      businessEntityType: businessProfile?.entityType,
+      accountingMethod: user.preferences.accountingMethod || "cash",
+    };
   },
 });
 
@@ -895,10 +895,6 @@ Respond with JSON:
 }
 
 /**
- * Create story in database (internal mutation)
- * Moved before action functions to avoid circular reference
- */
-/**
  * Create story in database (public mutation)
  */
 export const createStory = mutation({
@@ -909,9 +905,16 @@ export const createStory = mutation({
     periodStart: v.number(),
     periodEnd: v.number(),
     title: v.string(),
-    narrative: v.string(),
-    summary: v.string(),
-    keyMetrics: v.any(),
+    narrative: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    keyMetrics: v.optional(v.any()),
+    generationStatus: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("generating"),
+      v.literal("completed"),
+      v.literal("failed")
+    )),
+    generationError: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const storyId = await ctx.db.insert("ai_stories", {
@@ -923,7 +926,9 @@ export const createStory = mutation({
       title: args.title,
       narrative: args.narrative,
       summary: args.summary,
-      keyMetrics: args.keyMetrics,
+      keyMetrics: args.keyMetrics || {},
+      generationStatus: args.generationStatus || "completed",
+      generationError: args.generationError,
       version: 1,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -933,8 +938,88 @@ export const createStory = mutation({
   },
 });
 
+
 /**
- * Generate Company Story
+ * Internal action to generate company story in the background
+ */
+export const _generateCompanyStoryInternal = internalAction({
+  args: {
+    storyId: v.id("ai_stories"),
+    userId: v.id("users"),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    periodType: v.union(v.literal("monthly"), v.literal("quarterly"), v.literal("annually")),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Update status to generating
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        generationStatus: "generating",
+      });
+
+      // Aggregate financial data
+      const financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
+
+      // Build prompt
+      const periodLabel = `${new Date(args.periodStart).toLocaleDateString()} to ${new Date(args.periodEnd).toLocaleDateString()}`;
+      const prompt = buildCompanyStoryPrompt(financialData, periodLabel);
+      const systemPrompt = (args.periodType === "annually"
+        ? STORY_SYSTEM_PROMPTS.company.quarterly
+        : STORY_SYSTEM_PROMPTS.company[args.periodType]) || STORY_SYSTEM_PROMPTS.company.monthly;
+
+      // Call OpenRouter API
+      const result = await callOpenRouterAPI(prompt, systemPrompt);
+
+      // Update story with results
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        narrative: result.narrative,
+        summary: result.summary || result.insight || "",
+        keyMetrics: result.keyMetrics,
+        generationStatus: "completed",
+      });
+
+      // Create notification
+      const periodName = args.periodType === "monthly"
+        ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : args.periodType === "quarterly"
+          ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
+          : `${new Date(args.periodStart).getFullYear()}`;
+
+      await ctx.runMutation(api.notifications.createNotification, {
+        userId: args.userId,
+        type: "story_complete",
+        title: "Story Generated",
+        message: `Your Company Story for ${periodName} is ready to view.`,
+        metadata: { storyId: args.storyId },
+      });
+    } catch (error: any) {
+      // Update story with error
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        generationStatus: "failed",
+        generationError: error.message || "Unknown error occurred",
+      });
+
+      // Create failure notification
+      await ctx.runMutation(api.notifications.createNotification, {
+        userId: args.userId,
+        type: "story_failed",
+        title: "Story Generation Failed",
+        message: `Failed to generate your Company Story: ${error.message || "Unknown error"}`,
+        metadata: { storyId: args.storyId },
+      });
+    }
+  },
+});
+
+/**
+ * Generate Company Story (schedules background generation)
  */
 export const generateCompanyStory = action({
   args: {
@@ -954,65 +1039,45 @@ export const generateCompanyStory = action({
         return { storyId: "" as Id<"ai_stories">, success: false, error: "Invalid date range: start date must be before end date" };
       }
 
-      // Aggregate financial data
-      let financialData;
-      try {
-        financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
-          periodStart: args.periodStart,
-          periodEnd: args.periodEnd,
-          periodType: args.periodType,
-        });
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `Failed to aggregate financial data: ${error.message}` };
-      }
-
       // Check if we have data
+      const financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
+
       if (financialData.transactionCount === 0) {
         return { storyId: "" as Id<"ai_stories">, success: false, error: "No financial data found for the selected period" };
       }
 
-      // Build prompt
-      const periodLabel = `${new Date(args.periodStart).toLocaleDateString()} to ${new Date(args.periodEnd).toLocaleDateString()}`;
-      const prompt = buildCompanyStoryPrompt(financialData, periodLabel);
-      const systemPrompt = (args.periodType === "annually" 
-        ? STORY_SYSTEM_PROMPTS.company.quarterly 
-        : STORY_SYSTEM_PROMPTS.company[args.periodType]) || STORY_SYSTEM_PROMPTS.company.monthly;
+      // Create title
+      const periodName = args.periodType === "monthly"
+        ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : args.periodType === "quarterly"
+          ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
+          : `${new Date(args.periodStart).getFullYear()}`;
 
-      // Call OpenRouter API
-      let result;
-      try {
-        result = await callOpenRouterAPI(prompt, systemPrompt);
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `AI generation failed: ${error.message}` };
-      }
+      const title = `Company Story - ${periodName}`;
 
-    // Create title
-    const periodName = args.periodType === "monthly" 
-      ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
-      : args.periodType === "quarterly"
-      ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
-      : `${new Date(args.periodStart).getFullYear()}`;
+      // Create pending story record
+      const storyId = await ctx.runMutation(api.ai_stories.createStory, {
+        userId: user._id,
+        storyType: "company",
+        periodType: args.periodType,
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        title,
+        generationStatus: "pending",
+      });
 
-    const title = `Company Story - ${periodName}`;
-
-      // Save to database
-      // @ts-ignore - Circular reference in type inference
-      let storyId;
-      try {
-        storyId = await ctx.runMutation(api.ai_stories.createStory, {
-          userId: user._id,
-          storyType: "company",
-          periodType: args.periodType,
-          periodStart: args.periodStart,
-          periodEnd: args.periodEnd,
-          title,
-          narrative: result.narrative,
-          summary: result.summary || result.insight || "",
-          keyMetrics: result.keyMetrics,
-        });
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `Failed to save story: ${error.message}` };
-      }
+      // Schedule background generation
+      await ctx.scheduler.runAfter(0, api.ai_stories._generateCompanyStoryInternal, {
+        storyId,
+        userId: user._id,
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
 
       return { storyId, success: true };
     } catch (error: any) {
@@ -1022,7 +1087,86 @@ export const generateCompanyStory = action({
 });
 
 /**
- * Generate Banker Story
+ * Internal action to generate banker story in the background
+ */
+export const _generateBankerStoryInternal = internalAction({
+  args: {
+    storyId: v.id("ai_stories"),
+    userId: v.id("users"),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    periodType: v.union(v.literal("monthly"), v.literal("quarterly"), v.literal("annually")),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Update status to generating
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        generationStatus: "generating",
+      });
+
+      // Aggregate financial data
+      const financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
+
+      // Build prompt
+      const periodLabel = `${new Date(args.periodStart).toLocaleDateString()} to ${new Date(args.periodEnd).toLocaleDateString()}`;
+      const prompt = buildBankerStoryPrompt(financialData, periodLabel);
+      const systemPrompt = (args.periodType === "annually"
+        ? STORY_SYSTEM_PROMPTS.banker.quarterly
+        : STORY_SYSTEM_PROMPTS.banker[args.periodType]) || STORY_SYSTEM_PROMPTS.banker.monthly;
+
+      // Call OpenRouter API
+      const result = await callOpenRouterAPI(prompt, systemPrompt);
+
+      // Update story with results
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        narrative: result.narrative,
+        summary: result.summary || result.insight || "",
+        keyMetrics: result.keyMetrics,
+        generationStatus: "completed",
+      });
+
+      // Create notification
+      const periodName = args.periodType === "monthly"
+        ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : args.periodType === "quarterly"
+          ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
+          : `${new Date(args.periodStart).getFullYear()}`;
+
+      await ctx.runMutation(api.notifications.createNotification, {
+        userId: args.userId,
+        type: "story_complete",
+        title: "Story Generated",
+        message: `Your Banker Story for ${periodName} is ready to view.`,
+        metadata: { storyId: args.storyId },
+      });
+    } catch (error: any) {
+      // Update story with error
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        generationStatus: "failed",
+        generationError: error.message || "Unknown error occurred",
+      });
+
+      // Create failure notification
+      await ctx.runMutation(api.notifications.createNotification, {
+        userId: args.userId,
+        type: "story_failed",
+        title: "Story Generation Failed",
+        message: `Failed to generate your Banker Story: ${error.message || "Unknown error"}`,
+        metadata: { storyId: args.storyId },
+      });
+    }
+  },
+});
+
+/**
+ * Generate Banker Story (schedules background generation)
  */
 export const generateBankerStory = action({
   args: {
@@ -1042,65 +1186,45 @@ export const generateBankerStory = action({
         return { storyId: "" as Id<"ai_stories">, success: false, error: "Invalid date range: start date must be before end date" };
       }
 
-      // Aggregate financial data
-      let financialData;
-      try {
-        financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
-          periodStart: args.periodStart,
-          periodEnd: args.periodEnd,
-          periodType: args.periodType,
-        });
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `Failed to aggregate financial data: ${error.message}` };
-      }
-
       // Check if we have data
+      const financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
+
       if (financialData.transactionCount === 0) {
         return { storyId: "" as Id<"ai_stories">, success: false, error: "No financial data found for the selected period" };
       }
 
-      // Build prompt
-      const periodLabel = `${new Date(args.periodStart).toLocaleDateString()} to ${new Date(args.periodEnd).toLocaleDateString()}`;
-      const prompt = buildBankerStoryPrompt(financialData, periodLabel);
-      const systemPrompt = (args.periodType === "annually" 
-        ? STORY_SYSTEM_PROMPTS.banker.quarterly 
-        : STORY_SYSTEM_PROMPTS.banker[args.periodType]) || STORY_SYSTEM_PROMPTS.banker.monthly;
+      // Create title
+      const periodName = args.periodType === "monthly"
+        ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : args.periodType === "quarterly"
+          ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
+          : `${new Date(args.periodStart).getFullYear()}`;
 
-      // Call OpenRouter API
-      let result;
-      try {
-        result = await callOpenRouterAPI(prompt, systemPrompt);
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `AI generation failed: ${error.message}` };
-      }
+      const title = `Banker Story - ${periodName}`;
 
-    // Create title
-    const periodName = args.periodType === "monthly" 
-      ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
-      : args.periodType === "quarterly"
-      ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
-      : `${new Date(args.periodStart).getFullYear()}`;
+      // Create pending story record
+      const storyId = await ctx.runMutation(api.ai_stories.createStory, {
+        userId: user._id,
+        storyType: "banker",
+        periodType: args.periodType,
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        title,
+        generationStatus: "pending",
+      });
 
-    const title = `Banker Story - ${periodName}`;
-
-      // Save to database
-      // @ts-ignore - Circular reference in type inference
-      let storyId;
-      try {
-        storyId = await ctx.runMutation(api.ai_stories.createStory, {
-          userId: user._id,
-          storyType: "banker",
-          periodType: args.periodType,
-          periodStart: args.periodStart,
-          periodEnd: args.periodEnd,
-          title,
-          narrative: result.narrative,
-          summary: result.summary || result.insight || "",
-          keyMetrics: result.keyMetrics,
-        });
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `Failed to save story: ${error.message}` };
-      }
+      // Schedule background generation
+      await ctx.scheduler.runAfter(0, api.ai_stories._generateBankerStoryInternal, {
+        storyId,
+        userId: user._id,
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
 
       return { storyId, success: true };
     } catch (error: any) {
@@ -1110,7 +1234,86 @@ export const generateBankerStory = action({
 });
 
 /**
- * Generate Investor Story
+ * Internal action to generate investor story in the background
+ */
+export const _generateInvestorStoryInternal = internalAction({
+  args: {
+    storyId: v.id("ai_stories"),
+    userId: v.id("users"),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    periodType: v.union(v.literal("monthly"), v.literal("quarterly"), v.literal("annually")),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Update status to generating
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        generationStatus: "generating",
+      });
+
+      // Aggregate financial data
+      const financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
+
+      // Build prompt
+      const periodLabel = `${new Date(args.periodStart).toLocaleDateString()} to ${new Date(args.periodEnd).toLocaleDateString()}`;
+      const prompt = buildInvestorStoryPrompt(financialData, periodLabel);
+      const systemPrompt = (args.periodType === "annually"
+        ? STORY_SYSTEM_PROMPTS.investor.quarterly
+        : STORY_SYSTEM_PROMPTS.investor[args.periodType]) || STORY_SYSTEM_PROMPTS.investor.monthly;
+
+      // Call OpenRouter API
+      const result = await callOpenRouterAPI(prompt, systemPrompt);
+
+      // Update story with results
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        narrative: result.narrative,
+        summary: result.summary || result.insight || "",
+        keyMetrics: result.keyMetrics,
+        generationStatus: "completed",
+      });
+
+      // Create notification
+      const periodName = args.periodType === "monthly"
+        ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : args.periodType === "quarterly"
+          ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
+          : `${new Date(args.periodStart).getFullYear()}`;
+
+      await ctx.runMutation(api.notifications.createNotification, {
+        userId: args.userId,
+        type: "story_complete",
+        title: "Story Generated",
+        message: `Your Investor Story for ${periodName} is ready to view.`,
+        metadata: { storyId: args.storyId },
+      });
+    } catch (error: any) {
+      // Update story with error
+      await ctx.runMutation(api.ai_stories.updateStory, {
+        storyId: args.storyId,
+        generationStatus: "failed",
+        generationError: error.message || "Unknown error occurred",
+      });
+
+      // Create failure notification
+      await ctx.runMutation(api.notifications.createNotification, {
+        userId: args.userId,
+        type: "story_failed",
+        title: "Story Generation Failed",
+        message: `Failed to generate your Investor Story: ${error.message || "Unknown error"}`,
+        metadata: { storyId: args.storyId },
+      });
+    }
+  },
+});
+
+/**
+ * Generate Investor Story (schedules background generation)
  */
 export const generateInvestorStory = action({
   args: {
@@ -1130,65 +1333,45 @@ export const generateInvestorStory = action({
         return { storyId: "" as Id<"ai_stories">, success: false, error: "Invalid date range: start date must be before end date" };
       }
 
-      // Aggregate financial data
-      let financialData;
-      try {
-        financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
-          periodStart: args.periodStart,
-          periodEnd: args.periodEnd,
-          periodType: args.periodType,
-        });
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `Failed to aggregate financial data: ${error.message}` };
-      }
-
       // Check if we have data
+      const financialData = await ctx.runQuery(api.ai_stories.aggregateFinancialDataQuery, {
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
+
       if (financialData.transactionCount === 0) {
         return { storyId: "" as Id<"ai_stories">, success: false, error: "No financial data found for the selected period" };
       }
 
-      // Build prompt
-      const periodLabel = `${new Date(args.periodStart).toLocaleDateString()} to ${new Date(args.periodEnd).toLocaleDateString()}`;
-      const prompt = buildInvestorStoryPrompt(financialData, periodLabel);
-      const systemPrompt = (args.periodType === "annually" 
-        ? STORY_SYSTEM_PROMPTS.investor.quarterly 
-        : STORY_SYSTEM_PROMPTS.investor[args.periodType]) || STORY_SYSTEM_PROMPTS.investor.monthly;
+      // Create title
+      const periodName = args.periodType === "monthly"
+        ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : args.periodType === "quarterly"
+          ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
+          : `${new Date(args.periodStart).getFullYear()}`;
 
-      // Call OpenRouter API
-      let result;
-      try {
-        result = await callOpenRouterAPI(prompt, systemPrompt);
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `AI generation failed: ${error.message}` };
-      }
+      const title = `Investor Story - ${periodName}`;
 
-    // Create title
-    const periodName = args.periodType === "monthly" 
-      ? new Date(args.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })
-      : args.periodType === "quarterly"
-      ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
-      : `${new Date(args.periodStart).getFullYear()}`;
+      // Create pending story record
+      const storyId = await ctx.runMutation(api.ai_stories.createStory, {
+        userId: user._id,
+        storyType: "investor",
+        periodType: args.periodType,
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        title,
+        generationStatus: "pending",
+      });
 
-    const title = `Investor Story - ${periodName}`;
-
-      // Save to database
-      // @ts-ignore - Circular reference in type inference
-      let storyId;
-      try {
-        storyId = await ctx.runMutation(api.ai_stories.createStory, {
-          userId: user._id,
-          storyType: "investor",
-          periodType: args.periodType,
-          periodStart: args.periodStart,
-          periodEnd: args.periodEnd,
-          title,
-          narrative: result.narrative,
-          summary: result.summary || result.insight || "",
-          keyMetrics: result.keyMetrics,
-        });
-      } catch (error: any) {
-        return { storyId: "" as Id<"ai_stories">, success: false, error: `Failed to save story: ${error.message}` };
-      }
+      // Schedule background generation
+      await ctx.scheduler.runAfter(0, api.ai_stories._generateInvestorStoryInternal, {
+        storyId,
+        userId: user._id,
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        periodType: args.periodType,
+      });
 
       return { storyId, success: true };
     } catch (error: any) {
@@ -1244,6 +1427,8 @@ export const getStories = query({
       keyMetrics: story.keyMetrics,
       userNotes: story.userNotes,
       attachments: story.attachments,
+      generationStatus: story.generationStatus,
+      generationError: story.generationError,
       version: story.version,
       createdAt: story.createdAt,
       updatedAt: story.updatedAt,
@@ -1284,13 +1469,23 @@ export const getStoryById = query({
 });
 
 /**
- * Update story (user notes, attachments)
+ * Update story (user notes, attachments, generation status)
  */
 export const updateStory = mutation({
   args: {
     storyId: v.id("ai_stories"),
     userNotes: v.optional(v.string()),
     attachments: v.optional(v.array(v.string())),
+    narrative: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    keyMetrics: v.optional(v.any()),
+    generationStatus: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("generating"),
+      v.literal("completed"),
+      v.literal("failed")
+    )),
+    generationError: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -1324,6 +1519,26 @@ export const updateStory = mutation({
 
     if (args.attachments !== undefined) {
       updateData.attachments = args.attachments;
+    }
+
+    if (args.narrative !== undefined) {
+      updateData.narrative = args.narrative;
+    }
+
+    if (args.summary !== undefined) {
+      updateData.summary = args.summary;
+    }
+
+    if (args.keyMetrics !== undefined) {
+      updateData.keyMetrics = args.keyMetrics;
+    }
+
+    if (args.generationStatus !== undefined) {
+      updateData.generationStatus = args.generationStatus;
+    }
+
+    if (args.generationError !== undefined) {
+      updateData.generationError = args.generationError;
     }
 
     await ctx.db.patch(args.storyId, updateData);

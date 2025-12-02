@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,7 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Id } from "../../convex/_generated/dataModel";
+import { Id } from "convex/_generated/dataModel";
 import { useToast } from "@/lib/use-toast";
 import { formatTransactionDate, parseLocalDate } from "@/lib/dateUtils";
 import { useOrgIdOptional } from "../hooks/useOrgId";

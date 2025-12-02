@@ -9,10 +9,10 @@ import { useState } from "react";
 import { X, Upload, Image as ImageIcon, Loader2, Check, AlertCircle } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery, useAction } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { UploadButton } from "@/lib/uploadthing";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { Id } from "convex/_generated/dataModel";
 
 interface ReceiptUploadModalProps {
   onClose: () => void;

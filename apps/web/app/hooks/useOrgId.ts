@@ -1,7 +1,7 @@
 "use client";
 
-import { useOrgContext } from "../contexts/OrgContext";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { useOrg } from "../contexts/OrgContext";
+import { Id } from "convex/_generated/dataModel";
 
 /**
  * Hook to get current orgId with loading and error states
@@ -12,7 +12,7 @@ export function useOrgId(): {
   isLoading: boolean;
   error: string | null;
 } {
-  const { currentOrgId, isLoading, error } = useOrgContext();
+  const { currentOrgId, isLoading, error } = useOrg();
 
   if (!currentOrgId && !isLoading) {
     throw new Error("No organization selected. Please select an organization.");
@@ -38,6 +38,6 @@ export function useOrgIdOptional(): {
   isLoading: boolean;
   error: string | null;
 } {
-  const { currentOrgId, isLoading, error } = useOrgContext();
+  const { currentOrgId, isLoading, error } = useOrg();
   return { orgId: currentOrgId, isLoading, error };
 }

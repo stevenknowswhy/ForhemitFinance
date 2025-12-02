@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAction, useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import { usePlaidLink } from "react-plaid-link";
 import { Header } from "../components/Header";
 import { useUser } from "@clerk/nextjs";

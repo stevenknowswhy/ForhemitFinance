@@ -8,8 +8,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { X, Plus, Minus, Sparkles, Briefcase, User, RefreshCw, Loader2, Check, ArrowRight, RotateCcw, Receipt, Trash2, AlertTriangle, ChevronDown, Info } from "lucide-react";
 import { useMutation, useQuery, useAction } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
-import type { Id } from "../../../../../convex/_generated/dataModel";
+import { api } from "convex/_generated/api";
+import type { Id } from "convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { ReceiptUploadModal } from "./ReceiptUploadModal";
 import { ReceiptsGallery } from "./ReceiptsGallery";

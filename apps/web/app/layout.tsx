@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { OrgContextProvider } from "./contexts/OrgContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import { StripeProvider } from "./components/StripeProvider";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Toaster } from "@/components/ui/toaster";
@@ -40,11 +41,13 @@ export default function RootLayout({
             <StripeProvider>
               <ConvexClientProvider>
                 <OrgContextProvider>
-                  <ErrorBoundary>
-                    <ImpersonationBanner />
-                    {children}
-                    <Toaster />
-                  </ErrorBoundary>
+                  <NotificationProvider>
+                    <ErrorBoundary>
+                      <ImpersonationBanner />
+                      {children}
+                      <Toaster />
+                    </ErrorBoundary>
+                  </NotificationProvider>
                 </OrgContextProvider>
               </ConvexClientProvider>
             </StripeProvider>

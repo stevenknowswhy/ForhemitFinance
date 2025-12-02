@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useOrgId } from "../../../apps/web/app/hooks/useOrgId";
 
 interface MockBank {
   id: string;
@@ -47,6 +48,7 @@ export default function MockPlaidLink() {
   const [showModal, setShowModal] = useState(false);
   const [selectedBank, setSelectedBank] = useState<MockBank | null>(null);
   const [loading, setLoading] = useState(false);
+  const { orgId } = useOrgId(); // Phase 1: Get orgId from context
 
   const connectBank = useMutation(api.plaid.mockConnectBank as any);
 
@@ -63,6 +65,7 @@ export default function MockPlaidLink() {
         bankId: bank.id,
         bankName: bank.name,
         accountTypes: bank.accountTypes,
+        orgId, // Phase 1: Pass orgId
       });
 
       setShowModal(false);

@@ -543,8 +543,15 @@ export default defineSchema({
     periodStart: v.number(), // Timestamp
     periodEnd: v.number(), // Timestamp
     title: v.string(),
-    narrative: v.string(), // Full AI-generated narrative
-    summary: v.string(), // Short summary for card preview
+    narrative: v.optional(v.string()), // Full AI-generated narrative (optional for pending stories)
+    summary: v.optional(v.string()), // Short summary for card preview (optional for pending stories)
+    generationStatus: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("generating"),
+      v.literal("completed"),
+      v.literal("failed")
+    )),
+    generationError: v.optional(v.string()),
     keyMetrics: v.object({
       // Story-specific metrics (flexible object for different story types)
       revenue: v.optional(v.number()),
@@ -577,6 +584,30 @@ export default defineSchema({
     .index("by_org_storyType", ["orgId", "storyType"])
     .index("by_user_period", ["userId", "periodType", "periodStart"])
     .index("by_org_period", ["orgId", "periodType", "periodStart"]),
+  // Notifications (for background job completion)
+  notifications: defineTable({
+    userId: v.id("users"),
+    orgId: v.optional(v.id("organizations")),
+    type: v.union(
+      v.literal("story_complete"),
+      v.literal("story_failed"),
+      v.literal("report_complete"),
+      v.literal("report_failed")
+    ),
+    title: v.string(),
+    message: v.string(),
+    status: v.union(
+      v.literal("unread"),
+      v.literal("read")
+    ),
+    metadata: v.optional(v.any()), // Story ID, report type, etc.
+    createdAt: v.number(),
+    readAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
+    .index("by_user_status", ["userId", "status"])
+    .index("by_created", ["createdAt"]),
 
   // Business Profiles
   business_profiles: defineTable({

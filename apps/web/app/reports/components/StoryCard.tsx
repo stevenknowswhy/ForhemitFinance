@@ -5,7 +5,7 @@
  * Displays a preview card for an AI-generated story
  */
 
-import { BookOpen, Building2, TrendingUp, Calendar, Eye, Download, Sparkles, RefreshCw, CheckCircle2, FileText, Loader2, Database } from "lucide-react";
+import { BookOpen, Building2, TrendingUp, Calendar, Eye, Download, Sparkles, RefreshCw, CheckCircle2, FileText, Loader2, Database, AlertCircle, XCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,8 @@ interface StoryCardProps {
   onExport?: () => void;
   hasStory: boolean;
   isGenerating?: boolean;
+  generationStatus?: "pending" | "generating" | "completed" | "failed";
+  generationError?: string;
   story?: {
     narrative?: string;
     keyMetrics?: Record<string, any>;
@@ -98,6 +100,8 @@ export function StoryCard({
   onExport,
   hasStory,
   isGenerating = false,
+  generationStatus,
+  generationError,
   story,
 }: StoryCardProps) {
   const config = storyTypeConfig[storyType];
@@ -128,11 +132,35 @@ export function StoryCard({
       )}
     >
       {/* Status indicator */}
-      {hasStory && (
+      {generationStatus === "completed" && hasStory && (
         <div className="absolute top-4 right-4 z-10">
           <Badge variant="success" className="gap-1">
             <CheckCircle2 className="h-3 w-3" />
             Generated
+          </Badge>
+        </div>
+      )}
+      {generationStatus === "generating" && (
+        <div className="absolute top-4 right-4 z-10">
+          <Badge variant="default" className="gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Generating...
+          </Badge>
+        </div>
+      )}
+      {generationStatus === "pending" && (
+        <div className="absolute top-4 right-4 z-10">
+          <Badge variant="outline" className="gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Pending
+          </Badge>
+        </div>
+      )}
+      {generationStatus === "failed" && (
+        <div className="absolute top-4 right-4 z-10">
+          <Badge variant="destructive" className="gap-1" title={generationError}>
+            <XCircle className="h-3 w-3" />
+            Failed
           </Badge>
         </div>
       )}
@@ -171,7 +199,7 @@ export function StoryCard({
       </CardHeader>
 
       <CardContent>
-        {isGenerating ? (
+        {(isGenerating || generationStatus === "generating" || generationStatus === "pending") ? (
           <div className="py-8 text-center">
             <Loader2 className="h-10 w-10 text-blue-600 dark:text-blue-400 animate-spin mx-auto mb-4" />
             <h4 className="text-sm font-medium text-foreground mb-2">Generating your story...</h4>
@@ -186,6 +214,25 @@ export function StoryCard({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">Processing sections...</p>
+          </div>
+        ) : generationStatus === "failed" ? (
+          <div className="py-8 text-center">
+            <XCircle className="h-10 w-10 text-red-600 dark:text-red-400 mx-auto mb-4" />
+            <h4 className="text-sm font-medium text-foreground mb-2">Generation Failed</h4>
+            <p className="text-xs text-muted-foreground mb-4">
+              {generationError || "An error occurred while generating the story"}
+            </p>
+            {onRegenerate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRegenerate}
+                className="mt-2"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            )}
           </div>
         ) : hasStory ? (
           <GeneratedStoryView
@@ -228,7 +275,7 @@ export function StoryCard({
       </CardContent>
 
       <CardFooter className="flex gap-2">
-        {hasStory ? (
+        {hasStory && generationStatus === "completed" ? (
           <>
             <Button onClick={onView} className="flex-1" size="sm">
               <Eye className="w-4 h-4 mr-2" />
@@ -239,7 +286,7 @@ export function StoryCard({
                 onClick={onRegenerate}
                 variant="outline"
                 size="icon"
-                disabled={isGenerating}
+                disabled={isGenerating || generationStatus === "generating" || generationStatus === "pending"}
                 title="Regenerate story"
               >
                 {isGenerating ? (
@@ -255,14 +302,33 @@ export function StoryCard({
               </Button>
             )}
           </>
-        ) : (
+        ) : generationStatus === "failed" ? (
           <Button
-            onClick={onGenerate}
+            onClick={onRegenerate || onGenerate}
             className="w-full"
             size="sm"
             disabled={isGenerating}
           >
             {isGenerating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Retrying...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Retry Generation
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button
+            onClick={onGenerate}
+            className="w-full"
+            size="sm"
+            disabled={isGenerating || generationStatus === "generating" || generationStatus === "pending"}
+          >
+            {isGenerating || generationStatus === "generating" || generationStatus === "pending" ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Generating...

@@ -6,13 +6,13 @@
  */
 
 import { useQuery, useMutation, useAction } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { EntryPreview } from "./EntryPreview";
 import { useOrgId } from "../../hooks/useOrgId";
 import { Check, X, Edit2, CheckCheck, Loader2, AlertCircle, RefreshCw, Filter, ArrowUpDown, Search, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { Id } from "convex/_generated/dataModel";
 import { useSwipeable } from "react-swipeable";
 import { useToast } from "@/lib/use-toast";
 

@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { useAction } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import { useToast } from "@/components/ui/hooks/use-toast";
 import {
   Dialog,
@@ -135,8 +135,8 @@ export function StoryGenerator({
 
       if (result.success) {
         toast({
-          title: "Story generated",
-          description: `Your ${storyType} story has been generated successfully.`,
+          title: "Story generation started",
+          description: `Your ${storyType} story is being generated in the background. You'll be notified when it's ready.`,
         });
 
         onOpenChange(false);

@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,11 +23,29 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@tests/*": ["../../tests/*"]
+      "@/*": [
+        "./*"
+      ],
+      "@tests/*": [
+        "../../tests/*"
+      ],
+      "convex/*": [
+        "../../convex/*"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "types/**/*.d.ts", "../../tests/**/*.ts", "../../tests/**/*.tsx"],
-  "exclude": ["node_modules", "../../convex/**/*", "../../tests/**/*"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "types/**/*.d.ts",
+    "../../tests/**/*.ts",
+    "../../tests/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "../../convex/**/*",
+    "../../tests/**/*"
+  ]
 }
-

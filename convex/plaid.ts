@@ -45,7 +45,7 @@ async function loadPlaidSDK(): Promise<{
       Configuration,
     };
   }
-  
+
   try {
     // Dynamic import that won't fail at bundle time
     const plaid = await import("plaid");
@@ -54,7 +54,7 @@ async function loadPlaidSDK(): Promise<{
     Products = plaid.Products;
     CountryCode = plaid.CountryCode;
     Configuration = plaid.Configuration;
-    
+
     return {
       PlaidApi,
       PlaidEnvironments,
@@ -85,7 +85,7 @@ async function getPlaidClient() {
 
   // Try to load Plaid SDK dynamically
   const plaidSDK = await loadPlaidSDK();
-  
+
   if (!plaidSDK) {
     // Plaid SDK not available
     return null;
@@ -313,7 +313,7 @@ export const syncAccounts: ReturnType<typeof action> = action({
     } catch (error: any) {
       console.error("Error syncing accounts:", error);
       const errorMessage = error.response?.data?.error_message || error.message || "Unknown error";
-      
+
       // Update institution status to error
       await ctx.runMutation(api.plaid.updateInstitutionStatus, {
         institutionId: args.institutionId,
@@ -490,7 +490,7 @@ export const syncTransactions: ReturnType<typeof action> = action({
     } catch (error: any) {
       console.error("Error syncing transactions:", error);
       const errorMessage = error.response?.data?.error_message || error.message || "Unknown error";
-      
+
       // Update institution status to error
       await ctx.runMutation(api.plaid.updateInstitutionStatus, {
         institutionId: args.institutionId,
@@ -675,28 +675,20 @@ export const mockConnectBank = mutation({
     bankId: v.string(),
     bankName: v.string(),
     accountTypes: v.array(v.string()),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    // Phase 1: Use org context helper
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.MANAGE_INTEGRATIONS);
 
     // Create mock accounts
     const accountIds: Id<"accounts">[] = [];
-    
+
     for (const accountType of args.accountTypes) {
       const accountId = await ctx.db.insert("accounts", {
-        userId: user._id,
+        userId,
+        orgId, // Phase 1: Add orgId
         name: `${args.bankName} ${accountType}`,
         type: accountType === "Credit Card" ? "liability" : "asset",
         isBusiness: true,
@@ -704,7 +696,7 @@ export const mockConnectBank = mutation({
         bankName: args.bankName,
         accountType: accountType,
         accountNumber: Math.floor(1000 + Math.random() * 9000).toString(),
-        balance: accountType === "Credit Card" 
+        balance: accountType === "Credit Card"
           ? -(Math.floor(Math.random() * 5000) + 500) // Credit card balance (negative)
           : Math.floor(Math.random() * 50000) + 5000, // Positive balance
         availableBalance: accountType === "Credit Card"
@@ -717,13 +709,14 @@ export const mockConnectBank = mutation({
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      
+
       accountIds.push(accountId);
     }
 
     // Generate transactions directly (can't use scheduler in mutations)
     await generateMockTransactionsInternal(ctx, {
-      userId: user._id,
+      userId,
+      orgId, // Phase 1: Pass orgId
       accountIds,
       bankId: args.bankId,
     });
@@ -739,6 +732,7 @@ async function generateMockTransactionsInternal(
   ctx: any,
   args: {
     userId: Id<"users">;
+    orgId: Id<"organizations">; // Phase 1: Add orgId
     accountIds: Id<"accounts">[];
     bankId: string;
   }
@@ -775,14 +769,14 @@ async function generateMockTransactionsInternal(
     // Generate 3-8 transactions per day for the past 90 days
     for (let day = 0; day < daysBack; day++) {
       const numTransactions = Math.floor(Math.random() * 6) + 3;
-      
+
       for (let i = 0; i < numTransactions; i++) {
         const category = categories[Math.floor(Math.random() * categories.length)];
         const isIncome = category.name === "Income";
         const isPending = day < 2 && Math.random() < 0.3; // 30% of recent transactions pending
         const status = isPending ? "pending" : "posted";
         const now = Date.now();
-        
+
         // Calculate transaction date (spread throughout the day)
         const daysAgo = day;
         const hoursAgo = Math.floor(Math.random() * 24);
@@ -799,6 +793,7 @@ async function generateMockTransactionsInternal(
 
         await ctx.db.insert("transactions_raw", {
           userId: args.userId,
+          orgId: args.orgId, // Phase 1: Add orgId
           accountId,
           transactionId: `mock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           amount: isIncome ? roundedAmount : -roundedAmount,
@@ -814,6 +809,7 @@ async function generateMockTransactionsInternal(
           // postedAt: status === "posted" ? now : undefined, // TODO: Re-enable after codegen
           source: "mock",
           transactionType: isIncome ? "credit" : "debit",
+          isBusiness: account.isBusiness, // Phase 1: Inherit from account
           location: {
             city: location.city,
             state: location.state,
@@ -836,6 +832,7 @@ async function generateMockTransactionsInternal(
 export const generateMockTransactions = internalMutation({
   args: {
     userId: v.id("users"),
+    orgId: v.id("organizations"), // Phase 1: Add orgId
     accountIds: v.array(v.id("accounts")),
     bankId: v.string(),
   },
@@ -871,7 +868,7 @@ export const getMockAccounts = query({
       .collect();
 
     // Filter for bank accounts (have bankId or institutionId)
-    return allAccounts.filter(account => 
+    return allAccounts.filter(account =>
       account.bankId !== undefined || account.institutionId !== undefined
     );
   },
@@ -914,20 +911,20 @@ export const getMockTransactions = query({
     }
 
     if (args.startDate) {
-      transactions = transactions.filter(t => 
+      transactions = transactions.filter(t =>
         (t.dateTimestamp || new Date(t.date).getTime()) >= args.startDate!
       );
     }
 
     if (args.endDate) {
-      transactions = transactions.filter(t => 
+      transactions = transactions.filter(t =>
         (t.dateTimestamp || new Date(t.date).getTime()) <= args.endDate!
       );
     }
 
     if (args.category) {
-      transactions = transactions.filter(t => 
-        t.categoryName === args.category || 
+      transactions = transactions.filter(t =>
+        t.categoryName === args.category ||
         (t.category && t.category.includes(args.category!))
       );
     }
@@ -1206,7 +1203,7 @@ export const getAccountClassificationStats = query({
     const businessTransactions = transactions.filter(t => t.isBusiness === true).length;
     const personalTransactions = transactions.filter(t => t.isBusiness === false).length;
 
-    const accountClassificationPercent = totalAccounts > 0 
+    const accountClassificationPercent = totalAccounts > 0
       ? Math.round((classifiedAccounts / totalAccounts) * 100)
       : 0;
 

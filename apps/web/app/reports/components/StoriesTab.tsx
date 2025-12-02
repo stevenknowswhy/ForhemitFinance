@@ -5,9 +5,9 @@
  * Main component for AI Stories feature (Phase 2)
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import { useToast } from "@/components/ui/hooks/use-toast";
 import { StoryCard } from "./StoryCard";
 import { StoryView } from "./StoryView";
@@ -15,11 +15,13 @@ import { StoryGenerator } from "./StoryGenerator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, BookOpen, AlertTriangle, Download, Loader2, Database, AlertCircle, CheckCircle2 } from "lucide-react";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { Id } from "convex/_generated/dataModel";
 import { generateAndDownloadPDF } from "@/lib/storyPdfGenerator";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 export function StoriesTab() {
   const { toast } = useToast();
+  const { notifications } = useNotifications();
   const stories = useQuery(api.ai_stories.getStories, {});
   const exportStory = useAction(api.ai_stories.exportStory);
   const generateCompanyStory = useAction(api.ai_stories.generateCompanyStory);
@@ -34,6 +36,17 @@ export function StoriesTab() {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+
+  // Refresh stories when notifications indicate completion
+  useEffect(() => {
+    const storyCompleteNotifications = notifications.filter(
+      (n) => n.type === "story_complete" && n.status === "unread"
+    );
+    if (storyCompleteNotifications.length > 0) {
+      // Stories will automatically refresh via useQuery
+      // This effect just ensures we're aware of new completions
+    }
+  }, [notifications]);
 
   // Get latest story for each type and period
   const getLatestStory = (
@@ -547,6 +560,10 @@ export function StoriesTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {storyTypes.map(({ type, periodType }) => {
             const story = getLatestStory(type, periodType);
+            const generationStatus = story?.generationStatus;
+            const isPending = generationStatus === "pending" || generationStatus === "generating";
+            const isFailed = generationStatus === "failed";
+            
             return (
               <StoryCard
                 key={`${type}-${periodType}`}
@@ -555,13 +572,15 @@ export function StoriesTab() {
                 title={story?.title || ""}
                 summary={story?.summary || ""}
                 lastUpdated={story?.updatedAt || Date.now()}
-                hasStory={!!story}
-                isGenerating={isGenerating[`${type}-${periodType}`]}
-                onView={() => story && handleView(story._id)}
+                hasStory={!!story && generationStatus === "completed"}
+                isGenerating={isPending || isGenerating[`${type}-${periodType}`]}
+                generationStatus={generationStatus}
+                generationError={story?.generationError}
+                onView={() => story && generationStatus === "completed" && handleView(story._id)}
                 onGenerate={() => handleGenerate(type, periodType)}
                 onRegenerate={() => handleRegenerate(type, periodType)}
-                onExport={() => story && handleDownloadPDF(story)}
-                story={story ? {
+                onExport={() => story && generationStatus === "completed" && handleDownloadPDF(story)}
+                story={story && generationStatus === "completed" ? {
                   narrative: story.narrative,
                   keyMetrics: story.keyMetrics,
                   insight: story.summary,
