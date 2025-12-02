@@ -7,7 +7,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { api } from "../../../../convex/_generated/api";
 import { useToast } from "@/components/ui/hooks/use-toast";
 import { StoryCard } from "./StoryCard";
 import { StoryView } from "./StoryView";
@@ -15,7 +15,7 @@ import { StoryGenerator } from "./StoryGenerator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, BookOpen, AlertTriangle, Download, Loader2, Database, AlertCircle, CheckCircle2 } from "lucide-react";
-import { Id } from "../../../convex/_generated/dataModel";
+import { Id } from "../../../../convex/_generated/dataModel";
 import { generateAndDownloadPDF } from "@/lib/storyPdfGenerator";
 
 export function StoriesTab() {
