@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { Image as ImageIcon, FileText } from "lucide-react";
-import type { Doc } from "../../../../convex/_generated/dataModel";
+import type { Doc } from "../../../../../convex/_generated/dataModel";
 import { ReceiptViewer } from "./ReceiptViewer";
 import { cn } from "@/lib/utils";
 
