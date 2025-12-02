@@ -101,7 +101,7 @@ export function ProfessionalNetworkSettings() {
         email: contact.email,
         website: contact.website,
         notes: contact.notes,
-        isPrimary: contact.isPrimary,
+        isPrimary: contact.setAsPrimaryAt !== null && contact.setAsPrimaryAt !== undefined,
         tags: contact.tags,
       })));
     }
@@ -176,11 +176,19 @@ export function ProfessionalNetworkSettings() {
     saveTimeoutRef.current[id] = setTimeout(async () => {
       if (!contact._id) return;
       try {
-        await updateContact({
+        const updatePayload: any = {
           id: contact._id,
           [field]: value,
           ...(field === "contactType" && category ? { category } : {}),
-        });
+        };
+        
+        // Convert isPrimary boolean to setAsPrimaryAt timestamp
+        if (field === "isPrimary") {
+          updatePayload.setAsPrimaryAt = value ? Date.now() : null;
+          delete updatePayload.isPrimary;
+        }
+        
+        await updateContact(updatePayload);
         
         // Only show toast for important fields to avoid spam
         const importantFields = ["contactType", "name", "isPrimary"];
@@ -204,17 +212,18 @@ export function ProfessionalNetworkSettings() {
     const contact = contacts.find(c => (c._id || c.id) === id);
     if (!contact?._id) return;
 
-    try {
-      await updateContact({
-        id: contact._id,
-        isPrimary: !contact.isPrimary,
-      });
-      toast({
-        title: "Contact updated",
-        description: contact.isPrimary 
-          ? "Contact is no longer marked as primary." 
-          : "Contact marked as primary.",
-      });
+      try {
+        const newIsPrimary = !contact.isPrimary;
+        await updateContact({
+          id: contact._id,
+          setAsPrimaryAt: newIsPrimary ? Date.now() : null,
+        });
+        toast({
+          title: "Contact updated",
+          description: contact.isPrimary 
+            ? "Contact is no longer marked as primary." 
+            : "Contact marked as primary.",
+        });
     } catch (error) {
       toast({
         title: "Error",

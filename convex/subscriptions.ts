@@ -1,128 +1,135 @@
 /**
  * Subscription management functions
- * Handles subscription tiers, trials, and billing status
+ * Handles subscription tiers, trials, and billing status for Organizations
  */
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { requirePermission } from "./rbac";
+import { logSubscriptionChanged } from "./audit";
 
 export type SubscriptionTier = "solo" | "light" | "pro";
 export type BillingPeriod = "monthly" | "annual";
 
 /**
- * Get current user's subscription status
+ * Get organization's subscription status
  */
-export const getSubscriptionStatus = query({
-  args: {},
-  handler: async (ctx) => {
+export const getOrgSubscription = query({
+  args: {
+    orgId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    if (!identity) throw new Error("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", identity.email!))
       .first();
 
-    if (!user) {
-      throw new Error("User not found");
-    }
+    if (!user) throw new Error("User not found");
+
+    // Check membership (VIEW_FINANCIALS or just member?)
+    // Any member should probably see the plan status
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_org", (q) => q.eq("userId", user._id).eq("orgId", args.orgId))
+      .first();
+
+    if (!membership) throw new Error("Not a member of this organization");
+
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .first();
+
+    if (!subscription) return null;
+
+    const plan = await ctx.db.get(subscription.planId);
 
     return {
-      tier: user.subscriptionTier,
-      // TODO: Add trial end date, subscription status, etc. when Clerk billing is integrated
+      subscription,
+      plan,
     };
   },
 });
 
 /**
- * Update user subscription tier
- * Called after successful checkout via Stripe webhook
- * Can be called from webhook (no auth required) or from authenticated user
+ * Update organization subscription (e.g. from Stripe webhook or admin)
  */
-export const updateSubscription = mutation({
+export const updateOrgSubscription = mutation({
   args: {
-    userId: v.optional(v.id("users")), // Optional - for webhook calls
-    email: v.optional(v.string()), // Optional - for webhook calls
-    tier: v.union(v.literal("solo"), v.literal("light"), v.literal("pro")),
-    billingPeriod: v.optional(v.union(v.literal("monthly"), v.literal("annual"))),
-    trialEndsAt: v.optional(v.number()),
-    subscriptionStatus: v.optional(
-      v.union(
-        v.literal("trial"),
-        v.literal("active"),
-        v.literal("cancelled"),
-        v.literal("past_due")
-      )
+    orgId: v.id("organizations"),
+    planId: v.id("plans"),
+    status: v.union(
+      v.literal("active"),
+      v.literal("trialing"),
+      v.literal("past_due"),
+      v.literal("canceled"),
+      v.literal("suspended")
     ),
+    trialEndsAt: v.optional(v.number()),
+    renewsAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let user;
-
-    // If userId provided (from webhook), use it directly
-    if (args.userId) {
-      user = await ctx.db.get(args.userId);
-    }
-    // If email provided (from webhook), look up by email
-    else if (args.email) {
-      user = await ctx.db
-        .query("users")
-        .withIndex("by_email", (q) => q.eq("email", args.email!))
-        .first();
-    }
-    // Otherwise, require authentication
-    else {
-      const identity = await ctx.auth.getUserIdentity();
-      if (!identity) {
-        throw new Error("Not authenticated");
-      }
-
-      user = await ctx.db
-        .query("users")
-        .withIndex("by_email", (q) => q.eq("email", identity.email!))
-        .first();
-    }
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    await ctx.db.patch(user._id, {
-      subscriptionTier: args.tier,
-    });
-
-    return { success: true, userId: user._id };
-  },
-});
-
-/**
- * Check if user is in trial period
- */
-export const isInTrial = query({
-  args: {},
-  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return { inTrial: false, daysRemaining: 0 };
-    }
+    // If called from webhook, identity might be null, but we need to secure this.
+    // For now, let's assume this is called by an authenticated admin or internal process.
+    // In a real app, webhooks would use a separate internal mutation with signature verification.
+
+    if (!identity) throw new Error("Not authenticated");
 
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", identity.email!))
       .first();
 
-    if (!user) {
-      return { inTrial: false, daysRemaining: 0 };
+    if (!user) throw new Error("User not found");
+
+    // Require MANAGE_SUBSCRIPTION permission
+    const actorRole = await requirePermission(ctx, user._id, args.orgId, "MANAGE_SUBSCRIPTION");
+
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .first();
+
+    if (subscription) {
+      await ctx.db.patch(subscription._id, {
+        planId: args.planId,
+        status: args.status,
+        trialEndsAt: args.trialEndsAt,
+        renewsAt: args.renewsAt,
+        updatedAt: Date.now(),
+      });
+
+      await logSubscriptionChanged(ctx, {
+        orgId: args.orgId,
+        actorUserId: user._id,
+        actorRole,
+        subscriptionId: subscription._id,
+        changes: args,
+      });
+    } else {
+      // Create new subscription
+      const subId = await ctx.db.insert("subscriptions", {
+        orgId: args.orgId,
+        planId: args.planId,
+        status: args.status,
+        trialEndsAt: args.trialEndsAt,
+        renewsAt: args.renewsAt,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await logSubscriptionChanged(ctx, {
+        orgId: args.orgId,
+        actorUserId: user._id,
+        actorRole,
+        subscriptionId: subId,
+        changes: { action: "created", ...args },
+      });
     }
-
-    // TODO: Check trial end date from Clerk billing
-    // For now, check if user was created within last 14 days
-    const daysSinceSignup = (Date.now() - user.createdAt) / (1000 * 60 * 60 * 24);
-    const inTrial = daysSinceSignup <= 14;
-    const daysRemaining = inTrial ? Math.ceil(14 - daysSinceSignup) : 0;
-
-    return { inTrial, daysRemaining };
   },
 });
 

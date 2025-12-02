@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useToast } from "@/components/ui/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RefreshCw, Link2, Unlink, Settings, Database, Trash2, RotateCcw, AlertTriangle } from "lucide-react";
+import { RefreshCw, Link2, Unlink, Settings, Database, Trash2, RotateCcw, AlertTriangle, Sparkles } from "lucide-react";
 import MockPlaidLink from "@tests/mocks/components/MockPlaidLink";
 
 export function DataSyncSettings() {
@@ -25,6 +25,12 @@ export function DataSyncSettings() {
   const institutions = useQuery(api.plaid.getUserInstitutions) || [];
   const deleteAllTransactions = useMutation(api.transactions.deleteAllTransactions);
   const refreshApp = useMutation(api.users.refreshApp);
+  const generateMockData = useAction(api.mock_data.generateThreeMonthsMockData);
+  const mockDataStatus = useQuery(api.mock_data.getMockDataStatus);
+  const [isGeneratingMockData, setIsGeneratingMockData] = useState(false);
+  const [isGenerateMockDataDialogOpen, setIsGenerateMockDataDialogOpen] = useState(false);
+  const [includeBusiness, setIncludeBusiness] = useState(true);
+  const [includePersonal, setIncludePersonal] = useState(true);
 
   const handleReconnect = (institutionId: string) => {
     // TODO: Implement Plaid reconnection
@@ -93,6 +99,58 @@ export function DataSyncSettings() {
       });
     } finally {
       setIsRefreshingApp(false);
+    }
+  };
+
+  const handleGenerateMockData = async () => {
+    if (!includeBusiness && !includePersonal) {
+      toast({
+        title: "Selection required",
+        description: "Please select at least one data type (Business or Personal) to generate.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingMockData(true);
+    try {
+      const result = await generateMockData({
+        includeBusiness,
+        includePersonal,
+      });
+
+      if (result.success) {
+        toast({
+          title: "Mock data generated",
+          description: result.message || `Successfully generated ${result.results.business.transactionsGenerated + result.results.personal.transactionsGenerated} transactions.`,
+        });
+        setIsGenerateMockDataDialogOpen(false);
+      } else {
+        // If success is false, the error is in the message or we throw a generic error
+        throw new Error("Mock data generation failed");
+      }
+    } catch (error: any) {
+      console.error("Failed to generate mock data:", error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to generate mock data. Please try again.";
+      if (error?.message) {
+        if (error.message.includes("User not found")) {
+          errorMessage = "Authentication error. Please refresh the page and try again.";
+        } else if (error.message.includes("accounts")) {
+          errorMessage = "Account setup error. Please ensure you have completed onboarding.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      toast({
+        title: "Generation failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingMockData(false);
     }
   };
 
@@ -250,6 +308,102 @@ export function DataSyncSettings() {
                 </p>
               </div>
               <MockPlaidLink />
+            </div>
+          </div>
+
+          {/* Generate 3 Months Mock Data */}
+          <div className="space-y-2 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Generate 3 Months Mock Data</Label>
+                <p className="text-sm text-muted-foreground">
+                  Generate 3 months of business and personal transactions with proper double-entry accounting
+                </p>
+                {mockDataStatus && mockDataStatus.hasData && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Current: {mockDataStatus.totalTransactions} transactions, {mockDataStatus.totalEntries} entries
+                  </p>
+                )}
+              </div>
+              <Dialog open={isGenerateMockDataDialogOpen} onOpenChange={setIsGenerateMockDataDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Generate 3 Months Mock Data</DialogTitle>
+                    <DialogDescription>
+                      This will generate 3 months (90 days) of mock transactions with proper double-entry accounting entries.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="includeBusiness">Include Business Transactions</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Generate business revenue, expenses, and transactions
+                        </p>
+                      </div>
+                      <Switch
+                        id="includeBusiness"
+                        checked={includeBusiness}
+                        onCheckedChange={setIncludeBusiness}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="includePersonal">Include Personal Transactions</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Generate personal income, expenses, and transactions
+                        </p>
+                      </div>
+                      <Switch
+                        id="includePersonal"
+                        checked={includePersonal}
+                        onCheckedChange={setIncludePersonal}
+                      />
+                    </div>
+                    <div className="rounded-md bg-muted p-3 text-sm">
+                      <p className="font-medium mb-1">What will be generated:</p>
+                      <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                        <li>Raw transactions (transactions_raw)</li>
+                        <li>Proposed entries (entries_proposed)</li>
+                        <li>Approved entries (entries_final)</li>
+                        <li>Entry lines with proper double-entry (entry_lines)</li>
+                        <li>Personal accounts (if missing)</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsGenerateMockDataDialogOpen(false)}
+                      disabled={isGeneratingMockData}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleGenerateMockData}
+                      disabled={isGeneratingMockData || (!includeBusiness && !includePersonal)}
+                    >
+                      {isGeneratingMockData ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Generate Mock Data
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 

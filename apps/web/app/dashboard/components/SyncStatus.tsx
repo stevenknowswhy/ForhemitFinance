@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { RefreshCw, CheckCircle2, AlertCircle, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ interface SyncStatusProps {
 
 export function SyncStatus({ institutionId, className }: SyncStatusProps) {
   const institutions = useQuery(api.plaid.getUserInstitutions);
-  const syncAccounts = useMutation(api.plaid.syncAccounts);
+  const syncAccounts = useAction(api.plaid.syncAccounts);
 
   const [isSyncing, setIsSyncing] = React.useState(false);
 

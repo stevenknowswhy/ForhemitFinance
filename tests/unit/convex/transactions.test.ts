@@ -18,10 +18,10 @@ describe("Transaction Approval - Logic Tests", () => {
       };
 
       const hasRequiredFields =
-        validEntry.debitAccountId &&
-        validEntry.creditAccountId &&
-        validEntry.amount &&
-        validEntry.date;
+        !!validEntry.debitAccountId &&
+        !!validEntry.creditAccountId &&
+        !!validEntry.amount &&
+        !!validEntry.date;
 
       expect(hasRequiredFields).toBe(true);
     });
@@ -35,10 +35,10 @@ describe("Transaction Approval - Logic Tests", () => {
       };
 
       const hasRequiredFields =
-        invalidEntry.debitAccountId &&
-        invalidEntry.creditAccountId &&
-        invalidEntry.amount &&
-        invalidEntry.date;
+        !!invalidEntry.debitAccountId &&
+        !!invalidEntry.creditAccountId &&
+        !!invalidEntry.amount &&
+        !!invalidEntry.date;
 
       expect(hasRequiredFields).toBe(false);
     });

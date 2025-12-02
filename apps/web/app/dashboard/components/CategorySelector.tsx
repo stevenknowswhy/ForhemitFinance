@@ -209,9 +209,9 @@ export function CategorySelector({
                     </div>
                   ) : (
                     filteredCategories.map((category: any) => {
-                      const isCustomCategory = isTyping && !allCategories.some(cat => 
+                      const isCustomCategory = isTyping && !allCategories.some((cat: string) =>
                         cat.toLowerCase() === category.toLowerCase()
-                      ) || customCategories.some(cat => 
+                      ) || customCategories.some((cat: string) =>
                         cat.toLowerCase() === category.toLowerCase()
                       );
                       return (

@@ -6,6 +6,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { api } from "./_generated/api";
+import { createOrganization } from "./organizations";
+import { logOrgCreated } from "./audit";
 
 /**
  * Default chart of accounts for new users
@@ -120,51 +122,134 @@ export const completeOnboarding = mutation({
       .first();
 
     if (existingUser) {
-      // User already exists, check if they have accounts
-      const accounts = await ctx.db
-        .query("accounts")
+      // User already exists, check if they have an active organization membership
+      const membership = await ctx.db
+        .query("memberships")
         .withIndex("by_user", (q) => q.eq("userId", existingUser._id))
-        .collect();
-      
-      // If no accounts, create them
-      if (accounts.length === 0) {
-        for (const account of [
-          ...DEFAULT_ACCOUNTS.assets,
-          ...DEFAULT_ACCOUNTS.liabilities,
-          ...DEFAULT_ACCOUNTS.equity,
-          ...DEFAULT_ACCOUNTS.income,
-          ...DEFAULT_ACCOUNTS.expenses,
-        ]) {
-          await ctx.db.insert("accounts", {
-            userId: existingUser._id,
-            name: account.name,
-            type: account.type,
-            isBusiness: account.isBusiness,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          });
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .first();
+
+      // If they have a membership, check if the org actually exists
+      let hasValidOrg = false;
+      let existingOrgId = null;
+
+      if (membership) {
+        const org = await ctx.db.get(membership.orgId);
+        if (org) {
+          hasValidOrg = true;
+          existingOrgId = membership.orgId;
         }
       }
-      
-      return { userId: existingUser._id, isNew: false };
+
+      if (hasValidOrg) {
+        // User already has a valid org, check if they have accounts
+        const accounts = await ctx.db
+          .query("accounts")
+          .withIndex("by_org", (q) => q.eq("orgId", existingOrgId!))
+          .collect();
+
+        // If no accounts, create them
+        if (accounts.length === 0) {
+          for (const account of [
+            ...DEFAULT_ACCOUNTS.assets,
+            ...DEFAULT_ACCOUNTS.liabilities,
+            ...DEFAULT_ACCOUNTS.equity,
+            ...DEFAULT_ACCOUNTS.income,
+            ...DEFAULT_ACCOUNTS.expenses,
+          ]) {
+            await ctx.db.insert("accounts", {
+              userId: existingUser._id,
+              orgId: existingOrgId!,
+              name: account.name,
+              type: account.type,
+              isBusiness: account.isBusiness,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            });
+          }
+        }
+
+        return { userId: existingUser._id, orgId: existingOrgId!, isNew: false };
+      }
+
+      // If we get here, user exists but has no valid org. 
+      // Fall through to create organization logic.
+      // We need to use the existing user ID.
     }
 
-    // Create new user
-    const userId = await ctx.db.insert("users", {
-      email: identity.email!,
-      name: identity.name || undefined,
-      businessType: args.businessType,
-      subscriptionTier: "solo", // Default tier
-      preferences: {
-        defaultCurrency: "USD",
-        aiInsightLevel: "medium",
-        notificationsEnabled: true,
-      },
+    // Create new user if doesn't exist
+    let userId;
+    if (existingUser) {
+      userId = existingUser._id;
+      // Update business type if provided
+      if (args.businessType) {
+        await ctx.db.patch(userId, { businessType: args.businessType });
+      }
+    } else {
+      userId = await ctx.db.insert("users", {
+        email: identity.email!,
+        name: identity.name || undefined,
+        businessType: args.businessType,
+        subscriptionTier: "solo", // Default tier
+        status: "active", // Phase 1: Set status
+        preferences: {
+          defaultCurrency: "USD",
+          aiInsightLevel: "medium",
+          notificationsEnabled: true,
+        },
+        createdAt: Date.now(),
+      });
+    }
+
+    // Phase 1: Create organization for new user
+    const orgName = identity.name
+      ? `${identity.name}'s Organization`
+      : `${identity.email}'s Organization`;
+
+    const orgId = await ctx.db.insert("organizations", {
+      name: orgName,
+      type: "business", // Default to business
+      status: "active",
+      baseCurrency: "USD",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      lastActiveAt: Date.now(),
+    });
+
+    // Create membership (ORG_OWNER)
+    await ctx.db.insert("memberships", {
+      userId,
+      orgId,
+      role: "ORG_OWNER",
+      status: "active",
+      joinedAt: Date.now(),
       createdAt: Date.now(),
     });
 
-    // Create default accounts directly (can't use ctx.runMutation in mutations)
-    // Inline the account creation logic here
+    // Get starter plan and create subscription
+    const starterPlan = await ctx.db
+      .query("plans")
+      .filter((q) => q.eq(q.field("name"), "starter"))
+      .first();
+
+    if (starterPlan) {
+      await ctx.db.insert("subscriptions", {
+        orgId,
+        planId: starterPlan._id,
+        status: "active",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Log org creation
+    await logOrgCreated(ctx, {
+      orgId,
+      actorUserId: userId,
+      orgName,
+    });
+
+    // Create default accounts (org-scoped)
     for (const account of [
       ...DEFAULT_ACCOUNTS.assets,
       ...DEFAULT_ACCOUNTS.liabilities,
@@ -173,7 +258,8 @@ export const completeOnboarding = mutation({
       ...DEFAULT_ACCOUNTS.expenses,
     ]) {
       await ctx.db.insert("accounts", {
-        userId: userId,
+        userId: userId, // Keep for backward compatibility
+        orgId: orgId, // Phase 1: Add orgId
         name: account.name,
         type: account.type,
         isBusiness: account.isBusiness,
@@ -182,12 +268,13 @@ export const completeOnboarding = mutation({
       });
     }
 
-    return { userId, isNew: true };
+    return { userId, orgId, isNew: true };
   },
 });
 
 /**
  * Get onboarding status
+ * Phase 1: Updated to check for organization membership
  */
 export const getOnboardingStatus = query({
   args: {},
@@ -206,16 +293,48 @@ export const getOnboardingStatus = query({
       return { isAuthenticated: true, hasCompletedOnboarding: false };
     }
 
-    // Check if user has accounts
+    // Phase 1: Check if user has an organization (membership)
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .first();
+
+    // If no org membership, onboarding is not complete
+    if (!membership) {
+      return {
+        isAuthenticated: true,
+        hasCompletedOnboarding: false,
+        hasAccounts: false,
+        hasBankConnection: false,
+        user,
+      };
+    }
+
+    // Verify the organization actually exists
+    const org = await ctx.db.get(membership.orgId);
+    if (!org) {
+      // Membership exists but org doesn't (e.g. deleted)
+      // Treat as not onboarded
+      return {
+        isAuthenticated: true,
+        hasCompletedOnboarding: false,
+        hasAccounts: false,
+        hasBankConnection: false,
+        user,
+      };
+    }
+
+    // Check if user has accounts (org-scoped)
     const accounts = await ctx.db
       .query("accounts")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_org", (q) => q.eq("orgId", membership.orgId))
       .collect();
 
-    // Check if user has connected a bank
+    // Check if user has connected a bank (org-scoped)
     const institutions = await ctx.db
       .query("institutions")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_org", (q) => q.eq("orgId", membership.orgId))
       .collect();
 
     return {
@@ -224,6 +343,7 @@ export const getOnboardingStatus = query({
       hasAccounts: accounts.length > 0,
       hasBankConnection: institutions.length > 0,
       user,
+      orgId: membership.orgId, // Phase 1: Include orgId
     };
   },
 });

@@ -88,7 +88,7 @@ export function AddressesSettings({ isBusinessPlan }: AddressesSettingsProps) {
         city: addr.city,
         state: addr.state,
         zipCode: addr.zipCode,
-        isDefault: addr.isDefault,
+        isDefault: addr.setAsDefaultAt !== null && addr.setAsDefaultAt !== undefined,
       })));
     }
   }, [addressesData]);
@@ -130,11 +130,17 @@ export function AddressesSettings({ isBusinessPlan }: AddressesSettingsProps) {
     }
 
     try {
+      const { isDefault, ...addressFields } = formData;
+      const addressPayload = {
+        ...addressFields,
+        setAsDefaultAt: isDefault ? Date.now() : undefined,
+      };
+
       if (editingAddress?._id) {
         // Update existing
         await updateAddress({
           id: editingAddress._id,
-          ...formData,
+          ...addressPayload,
         });
         toast({
           title: "Address updated",
@@ -142,7 +148,7 @@ export function AddressesSettings({ isBusinessPlan }: AddressesSettingsProps) {
         });
       } else {
         // Add new
-        await addAddress(formData);
+        await addAddress(addressPayload);
         toast({
           title: "Address added",
           description: "The address has been added.",

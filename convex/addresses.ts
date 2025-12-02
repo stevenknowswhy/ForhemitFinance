@@ -45,7 +45,7 @@ export const addAddress = mutation({
     city: v.string(),
     state: v.string(),
     zipCode: v.string(),
-    isDefault: v.optional(v.boolean()),
+    setAsDefaultAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -62,12 +62,37 @@ export const addAddress = mutation({
       throw new Error("User not found");
     }
 
-    const addressId = await ctx.db.insert("addresses", {
+    const now = Date.now();
+    const addressData: any = {
       userId: user._id,
-      ...args,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+      type: args.type,
+      streetAddress: args.streetAddress,
+      addressLine2: args.addressLine2,
+      city: args.city,
+      state: args.state,
+      zipCode: args.zipCode,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // If setting as default, unset other defaults of the same type
+    if (args.setAsDefaultAt !== undefined && args.setAsDefaultAt !== null) {
+      const existingAddresses = await ctx.db
+        .query("addresses")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .collect();
+
+      const existingDefault = existingAddresses.find(
+        (a) => a.type === args.type && a.setAsDefaultAt !== null && a.setAsDefaultAt !== undefined
+      );
+
+      if (existingDefault) {
+        await ctx.db.patch(existingDefault._id, { setAsDefaultAt: undefined });
+      }
+      addressData.setAsDefaultAt = args.setAsDefaultAt;
+    }
+
+    const addressId = await ctx.db.insert("addresses", addressData);
 
     return { success: true, id: addressId };
   },
@@ -85,7 +110,7 @@ export const updateAddress = mutation({
     city: v.optional(v.string()),
     state: v.optional(v.string()),
     zipCode: v.optional(v.string()),
-    isDefault: v.optional(v.boolean()),
+    setAsDefaultAt: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -107,11 +132,33 @@ export const updateAddress = mutation({
       throw new Error("Address not found or access denied");
     }
 
-    const { id, ...updateData } = args;
-    await ctx.db.patch(args.id, {
+    const { id, setAsDefaultAt, ...updateData } = args;
+    const finalUpdateData: any = {
       ...updateData,
       updatedAt: Date.now(),
-    });
+    };
+
+    // If setting as default, unset other defaults of the same type
+    if (setAsDefaultAt !== undefined) {
+      if (setAsDefaultAt !== null) {
+        const existingAddresses = await ctx.db
+          .query("addresses")
+          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .collect();
+
+        const addressType = args.type || address.type;
+        const existingDefault = existingAddresses.find(
+          (a) => a._id !== args.id && a.type === addressType && a.setAsDefaultAt !== null && a.setAsDefaultAt !== undefined
+        );
+
+        if (existingDefault) {
+          await ctx.db.patch(existingDefault._id, { setAsDefaultAt: undefined });
+        }
+      }
+      finalUpdateData.setAsDefaultAt = setAsDefaultAt;
+    }
+
+    await ctx.db.patch(args.id, finalUpdateData);
 
     return { success: true };
   },

@@ -21,6 +21,7 @@ import { TransactionEmptyState } from "./TransactionEmptyStates";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/lib/use-toast";
+import { useOrgIdOptional } from "../../hooks/useOrgId";
 
 interface AddTransactionModalProps {
   onClose: () => void;
@@ -54,6 +55,11 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
   
   // Itemization state (replaces "advanced mode")
   const [showItemization, setShowItemization] = useState(false);
+  
+  // Handler for itemization toggle
+  const handleItemizationToggle = (value: boolean) => {
+    setShowItemization(value);
+  };
   
   // Advanced flyout state
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -131,7 +137,8 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
   const suggestSplit = useAction(api.split_suggestions.suggestSplit);
   const addCustomCategory = useMutation(api.users.addCustomCategory);
   const saveCorrection = useMutation(api.knowledge_base.saveCorrection);
-  const userAccounts = useQuery(api.accounts.getAll);
+  const { orgId } = useOrgIdOptional();
+  const userAccounts = useQuery(api.accounts.getAll, orgId ? { orgId } : "skip");
   const { toast } = useToast();
   
   // Duplicate detection
@@ -291,7 +298,7 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
       const receiptItems = receiptOCRData?.items;
       
       // Always enable itemization mode first
-      handleItemizationToggle(true);
+      enableItemization();
       
       // Try to get AI suggestions
       try {
@@ -352,7 +359,7 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
     } catch (error: any) {
       console.error("Failed to split transaction:", error);
       // Even on error, enable itemization so user can manually split
-      handleItemizationToggle(true);
+      enableItemization();
       
       // Create at least one line item with the current data
       if (lineItems.length === 0) {
@@ -475,39 +482,38 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
     }
   };
 
-  // Handle itemization toggle (replaces mode switching)
-  const handleItemizationToggle = (show: boolean) => {
-    if (show) {
-      // Switching to itemization: create initial line item from current data
-      if (title && amount && category && lineItems.length === 0) {
-        setLineItems([{
-          id: Date.now().toString(),
-          description: title,
-          category: category,
-          amount: amount,
-          tax: "",
-          tip: "",
-        }]);
-      }
-      setShowItemization(true);
-    } else {
-      // Switching from itemization: keep total amount, drop line items
-      if (lineItems.length > 0) {
-        const total = lineItems.reduce((sum: number, item: any) => {
-          const itemAmount = parseFloat(item.amount) || 0;
-          const itemTax = parseFloat(item.tax) || 0;
-          const itemTip = parseFloat(item.tip) || 0;
-          return sum + itemAmount + itemTax + itemTip;
-        }, 0);
-        setAmount(total.toFixed(2));
-        // Use first line item's category if available
-        if (lineItems[0]?.category) {
-          setCategory(lineItems[0].category);
-        }
-        setLineItems([]);
-      }
-      setShowItemization(false);
+  // Enable itemization mode: create initial line item from current data
+  const enableItemization = () => {
+    if (title && amount && category && lineItems.length === 0) {
+      setLineItems([{
+        id: Date.now().toString(),
+        description: title,
+        category: category,
+        amount: amount,
+        tax: "",
+        tip: "",
+      }]);
     }
+    setShowItemization(true);
+  };
+
+  // Disable itemization mode: keep total amount, drop line items
+  const disableItemization = () => {
+    if (lineItems.length > 0) {
+      const total = lineItems.reduce((sum: number, item: any) => {
+        const itemAmount = parseFloat(item.amount) || 0;
+        const itemTax = parseFloat(item.tax) || 0;
+        const itemTip = parseFloat(item.tip) || 0;
+        return sum + itemAmount + itemTax + itemTip;
+      }, 0);
+      setAmount(total.toFixed(2));
+      // Use first line item's category if available
+      if (lineItems[0]?.category) {
+        setCategory(lineItems[0].category);
+      }
+      setLineItems([]);
+    }
+    setShowItemization(false);
   };
 
   // Form validation
@@ -647,7 +653,7 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
         date: new Date(date).toISOString().split("T")[0],
         description: fullDescription,
         merchant: category || undefined,
-        isPending: false,
+        status: "pending",
         isBusiness: isBusiness ?? undefined,
         entryMode: showItemization ? "advanced" : "simple",
         debitAccountId: debitAccountId ? debitAccountId as Id<"accounts"> : undefined,
@@ -662,8 +668,15 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
       if (shouldUseAI) {
         try {
           await processTransaction({ transactionId });
-        } catch (error) {
+          // Note: AI suggestions are generated asynchronously via scheduler
+          // The proposed entry will appear in the approval queue when ready
+        } catch (error: any) {
           console.error("Failed to generate AI suggestions:", error);
+          toast({
+            title: "AI suggestion in progress",
+            description: "Your transaction was saved. AI suggestions are being generated and will appear in the approval queue shortly.",
+            variant: "default",
+          });
         }
       }
 
@@ -1475,6 +1488,51 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
           {/* Full Form (revealed after intent selection) */}
           {intent !== null && (
             <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Quick Business/Personal Toggle - Prominent visual indicator */}
+              <div className="mb-4 flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
+                <div className="flex items-center gap-2">
+                  {isBusiness ? (
+                    <Briefcase className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  ) : (
+                    <User className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  )}
+                  <span className="text-sm font-medium text-foreground">
+                    {isBusiness ? "Business" : "Personal"} {transactionType === "income" ? "Income" : "Expense"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Toggle between business and personal while keeping transaction type
+                    if (transactionType === "expense") {
+                      setIntent(isBusiness ? "personal_expense" : "business_expense");
+                    } else {
+                      setIntent(isBusiness ? "personal_income" : "business_income");
+                    }
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2",
+                    "border border-border bg-background hover:bg-muted",
+                    "focus:outline-none focus:ring-2 focus:ring-primary"
+                  )}
+                  title={`Switch to ${isBusiness ? "Personal" : "Business"}`}
+                >
+                  {isBusiness ? (
+                    <>
+                      <User className="w-4 h-4" />
+                      <span className="hidden sm:inline">Switch to Personal</span>
+                      <span className="sm:hidden">Personal</span>
+                    </>
+                  ) : (
+                    <>
+                      <Briefcase className="w-4 h-4" />
+                      <span className="hidden sm:inline">Switch to Business</span>
+                      <span className="sm:hidden">Business</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               <form id="transaction-form" onSubmit={handleSubmit} className={cn(
                 "flex flex-col space-y-5 animate-in fade-in slide-in-from-top-2 duration-300 overflow-y-auto",
                 intent !== null && "mt-0"
@@ -2196,7 +2254,7 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleItemizationToggle(false)}
+                      onClick={() => disableItemization()}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                     >
                       Back to simple
@@ -2673,7 +2731,7 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    handleItemizationToggle(true);
+                    enableItemization();
                     setAdvancedOpen(false);
                   }}
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-slate-700"

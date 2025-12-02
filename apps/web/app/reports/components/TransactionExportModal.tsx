@@ -213,7 +213,7 @@ export function TransactionExportModal({
               "Credit Amount": lineItem.creditAccountId ? formatCurrency(Math.abs(lineItem.amount)) : "",
               "Transaction ID": index === 0 ? (t.transactionId || "") : "",
               Currency: index === 0 ? (t.currency || "USD") : "",
-              Pending: index === 0 ? (t.isPending ? "Yes" : "No") : "",
+              Pending: index === 0 ? (t.status === "pending" ? "Yes" : "No") : "",
               "Entry Mode": "Advanced",
               "Line Item": `${index + 1} of ${lineItems.length}`,
             });
@@ -243,7 +243,7 @@ export function TransactionExportModal({
             "Credit Amount": t.creditAccountId ? formatCurrency(Math.abs(amount)) : "",
             "Transaction ID": t.transactionId || "",
             Currency: t.currency || "USD",
-            Pending: t.isPending ? "Yes" : "No",
+            Pending: t.status === "pending" ? "Yes" : "No",
             "Entry Mode": t.entryMode || "Simple",
             "Line Item": "",
           });

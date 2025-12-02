@@ -2,7 +2,32 @@
 
 ## Overview
 
-This report details all conflicts, duplicates, and overlaps found among the 85 markdown files in the EZ Financial repository. Each conflict is categorized, analyzed, and includes recommended resolution actions.
+This report details all conflicts, duplicates, and overlaps found among the markdown files in the EZ Financial repository. Each conflict is categorized, analyzed, and includes recommended resolution actions.
+
+**Last Updated**: December 2024  
+**Status**: Partially Resolved - Reorganization completed, but some conflicts remain
+
+---
+
+## Current State
+
+### ✅ Completed Reorganization
+
+The documentation has been reorganized into a logical folder structure:
+- `01-getting-started/` - Installation and setup guides
+- `02-integrations/` - Third-party service integrations
+- `03-architecture/` - Technical architecture
+- `04-product/` - Product documentation
+- `05-development/` - Development guides
+- `06-status-reports/` - Project status reports
+- `07-fixes/` - Bug fixes and troubleshooting
+- `08-testing/` - Test results and reports
+- `09-marketing/` - Marketing documentation
+- `10-archive/` - Archived/outdated files
+
+### ⚠️ Remaining Conflicts
+
+Despite reorganization, several conflicts and duplicates remain that need harmonization.
 
 ---
 
@@ -10,244 +35,165 @@ This report details all conflicts, duplicates, and overlaps found among the 85 m
 
 ### 🔴 Critical Conflicts (Conflicting Instructions)
 
-#### Conflict #1: Package Manager Instructions
-**Files:**
-- `INSTALLATION_GUIDE.md` - Recommends pnpm
-- `INSTALL_WITH_NPM.md` - Recommends npm
-- `FIX_PACKAGE_MANAGERS.md` - Troubleshooting for both
+#### Conflict #1: Package Manager Instructions (✅ RESOLVED)
+**Current Location**: `docs/01-getting-started/`
 
-**Nature**: Conflicting primary instructions
-**Impact**: High - Users may follow wrong instructions
-**Recommended Action**: 
-- Create unified `docs/01-getting-started/installation.md`
-- List pnpm as primary, npm/yarn as alternatives
-- Include troubleshooting section
+**Status**: ✅ **RESOLVED** - Unified installation guide created:
+- `installation.md` - ✅ Lists pnpm as primary, npm/yarn as alternatives
+- `package-manager-troubleshooting.md` - ✅ Separate troubleshooting guide
+- Cross-referenced appropriately
+
+**Action Taken**: Package manager instructions unified with clear primary/secondary options
+**Remaining Action**: None - this conflict is resolved
 
 ---
 
-#### Conflict #2: JWT Template Setup
-**Files:**
-- `CLERK_JWT_TEMPLATE_SETUP.md` - Setup instructions
-- `JWT_TEMPLATE_CORRECT.md` - Corrected instructions
-- `JWT_TEMPLATE_REVIEW.md` - Review/verification
+#### Conflict #2: JWT Template Setup (✅ RESOLVED)
+**Current Location**: `docs/02-integrations/`
 
-**Nature**: Multiple versions, unclear which is current
-**Impact**: Medium - May cause setup confusion
-**Recommended Action**:
-- Merge into `docs/02-integrations/jwt-template-setup.md`
-- Use content from `JWT_TEMPLATE_CORRECT.md` as base
-- Archive review version
+**Status**: ✅ **RESOLVED** - Files have been merged:
+- `jwt-template-setup.md` - ✅ Current consolidated version
+- `docs/10-archive/duplicate-files/JWT_TEMPLATE_REVIEW.md` - ✅ Archived
+
+**Action Taken**: JWT template docs successfully consolidated
+**Remaining Action**: None - this conflict is resolved
 
 ---
 
 ### 🟡 Duplicate Content (Redundant Files)
 
-#### Duplicate #1: Status Reports (8 files)
-**Files:**
-1. `EXECUTIVE_SUMMARY.md` - High-level status
-2. `FINAL_SUMMARY.md` - Completion summary
-3. `PROJECT_STATUS_REPORT.md` - Detailed status
-4. `COMPLETE_PROJECT_STATUS.md` - Complete status
-5. `STATUS_AND_NEXT_STEPS.md` - Status with next steps
-6. `PROGRESS_SUMMARY.md` - Progress tracking
-7. `PHASE_SUMMARY.md` - Phase summaries
-8. `SUCCESS.md` - Success message
+#### Duplicate #1: Status Reports (✅ RESOLVED)
+**Current Location**: `docs/06-status-reports/` and `docs/10-archive/old-status-reports/`
 
-**Nature**: All cover project status, progress, completion
-**Overlap**: 70-90% content overlap
-**Recommended Action**:
-- Merge into `docs/06-status-reports/current-status.md`
-- Extract unique information from each
-- Archive older versions
+**Status**: ✅ **RESOLVED** - Files have been merged and archived:
+- `current-status.md` - ✅ Enhanced with unique content from all files
+- `EXECUTIVE_SUMMARY.md` - ✅ Archived (unique content merged)
+- `PROJECT_STATUS_REPORT.md` - ✅ Archived (unique content merged)
+- `COMPLETE_PROJECT_STATUS.md` - ✅ Archived (unique content merged)
+- `STATUS_AND_NEXT_STEPS.md` - ✅ Archived (unique content merged)
+- `PROGRESS_SUMMARY.md` - ✅ Archived (unique content merged)
 
-**Content Analysis:**
-- `EXECUTIVE_SUMMARY.md`: Strategic overview, gaps, critical path
-- `PROJECT_STATUS_REPORT.md`: Detailed implementation status
-- `COMPLETE_PROJECT_STATUS.md`: Code completion status
-- `STATUS_AND_NEXT_STEPS.md`: Current status + next steps
-- `PROGRESS_SUMMARY.md`: Milestone progress
-- `PHASE_SUMMARY.md`: Phase-by-phase breakdown
-- `FINAL_SUMMARY.md`: Completion summary (outdated)
-- `SUCCESS.md`: Simple success message (outdated)
+**Action Taken**: 
+- Extracted unique content from each file:
+  - Roadmap alignment summary from EXECUTIVE_SUMMARY
+  - Detailed MCP server phase completion from PROJECT_STATUS_REPORT
+  - Enhanced package manager troubleshooting from COMPLETE_PROJECT_STATUS and STATUS_AND_NEXT_STEPS
+  - Project metrics and code statistics
+- Merged all unique information into `current-status.md`
+- Archived all redundant files to `docs/10-archive/old-status-reports/`
+- Kept milestone files in `milestones/` subfolder (already organized)
+
+**Remaining Action**: None - this conflict is resolved
 
 ---
 
-#### Duplicate #2: Installation Guides (5 files)
-**Files:**
-1. `INSTALLATION_GUIDE.md` - Main installation guide
-2. `SETUP_GUIDE.md` - Convex setup guide
-3. `QUICK_START.md` - Quick start guide
-4. `INSTALL_WITH_NPM.md` - npm-specific guide
-5. `apps/web/QUICK_START_COMMANDS.md` - Command reference
+#### Duplicate #2: Installation Guides (✅ RESOLVED)
+**Current Location**: `docs/01-getting-started/`
 
-**Nature**: Overlapping installation instructions
-**Overlap**: 50-70% content overlap
-**Recommended Action**:
-- Merge into `docs/01-getting-started/installation.md`
-- Create `docs/01-getting-started/quick-start.md` (condensed)
-- Move package manager troubleshooting to separate file
+**Status**: ✅ **RESOLVED** - Files have been merged and organized:
+- `installation.md` - ✅ Comprehensive installation guide (merged)
+- `quick-start.md` - ✅ Condensed quick start guide
+- `setup-guide.md` - ✅ Convex-specific setup
+- `package-manager-troubleshooting.md` - ✅ Package manager issues
 
-**Content Analysis:**
-- `INSTALLATION_GUIDE.md`: MCP server + dashboard installation
-- `SETUP_GUIDE.md`: Convex + Next.js connection
-- `QUICK_START.md`: Architecture overview + quick setup
-- `INSTALL_WITH_NPM.md`: npm alternative to pnpm
-- `QUICK_START_COMMANDS.md`: Command reference only
+**Action Taken**: Installation guides successfully consolidated
+**Remaining Action**: None - this conflict is resolved
 
 ---
 
-#### Duplicate #3: Stripe Setup (4 files)
-**Files:**
-1. `STRIPE_BILLING_SETUP.md` - Comprehensive Stripe setup
-2. `STRIPE_QUICK_SETUP.md` - Quick Stripe setup
-3. `STRIPE_KEYS.md` - Stripe keys documentation
-4. `CLERK_BILLING_SETUP.md` - Clerk + Stripe integration
+#### Duplicate #3: Stripe Setup (✅ RESOLVED)
+**Current Location**: `docs/02-integrations/`
 
-**Nature**: Multiple Stripe setup documents
-**Overlap**: 60-80% content overlap
-**Recommended Action**:
-- Merge into `docs/02-integrations/stripe-setup.md`
-- Organize: Setup → Configuration → Testing
-- Remove redundant key documentation
+**Status**: ✅ **RESOLVED** - Stripe setup documentation created:
+- `stripe-setup.md` - ✅ Comprehensive Stripe setup guide created
+- Consolidates information from:
+  - `SUBSCRIPTION_SETUP_COMPLETE.md` (setup details)
+  - `webhook-setup.md` (webhook configuration)
+  - Codebase (implementation details)
+- `docs/README.md` link verified and working
 
-**Content Analysis:**
-- `STRIPE_BILLING_SETUP.md`: Complete setup with products, webhooks
-- `STRIPE_QUICK_SETUP.md`: Condensed version
-- `STRIPE_KEYS.md`: Key configuration only
-- `CLERK_BILLING_SETUP.md`: Clerk integration with Stripe
+**Action Taken**: Created comprehensive Stripe setup documentation
+**Remaining Action**: None - this conflict is resolved
 
 ---
 
-#### Duplicate #4: Dashboard Fixes (6 files)
-**Files:**
-1. `FIX_DASHBOARD_ISSUES.md` - Dashboard fix guide
-2. `apps/web/DASHBOARD_FIX_SUMMARY.md` - Fix summary
-3. `ACCOUNT_CARDS_GRID_FIX.md` - Grid layout fix
-4. `GRID_FIX_FINAL.md` - Final grid fix
-5. `ONBOARDING_FIX_COMPLETE.md` - Onboarding fixes
-6. `TEST_ONBOARDING_FIX.md` - Onboarding test fixes
+#### Duplicate #4: Dashboard Fixes (✅ RESOLVED)
+**Current Location**: `docs/07-fixes/`
 
-**Nature**: Multiple fix documents for dashboard
-**Overlap**: 40-60% content overlap
-**Recommended Action**:
-- Merge into `docs/07-fixes/dashboard-fixes.md`
-- Organize by issue: Grid → Onboarding → General
-- Keep chronological order
+**Status**: ✅ **RESOLVED** - Files have been organized:
+- `dashboard-fixes.md` - ✅ Consolidated dashboard fixes
+- `ACCOUNT_CARDS_GRID_FIX.md` - ✅ Individual fix (kept for reference)
+- `GRID_FIX_FINAL.md` - ✅ Individual fix (kept for reference)
+- `ONBOARDING_FIX_COMPLETE.md` - ✅ Individual fix (kept for reference)
+- `TEST_ONBOARDING_FIX.md` - ✅ Individual fix (kept for reference)
+- `DASHBOARD_FIX_SUMMARY.md` - ✅ Summary (kept for reference)
 
-**Content Analysis:**
-- `FIX_DASHBOARD_ISSUES.md`: General dashboard fixes
-- `DASHBOARD_FIX_SUMMARY.md`: Summary of fixes
-- `ACCOUNT_CARDS_GRID_FIX.md`: Grid layout diagnostic
-- `GRID_FIX_FINAL.md`: Final grid solution
-- `ONBOARDING_FIX_COMPLETE.md`: Onboarding fixes
-- `TEST_ONBOARDING_FIX.md`: Testing onboarding fixes
+**Action Taken**: Dashboard fixes organized in `07-fixes/` folder
+**Note**: Individual fix files kept for historical reference, main consolidated doc exists
 
 ---
 
-#### Duplicate #5: CSS Fixes (2 files)
-**Files:**
-1. `apps/web/CSS_FIX.md` - CSS fix guide
-2. `apps/web/CSS_DIAGNOSTIC.md` - CSS diagnostic guide
+#### Duplicate #5: CSS Fixes (✅ RESOLVED)
+**Current Location**: `docs/07-fixes/`
 
-**Nature**: Overlapping CSS troubleshooting
-**Overlap**: 70% content overlap
-**Recommended Action**:
-- Merge into `docs/07-fixes/css-fixes.md`
-- Combine diagnostic and fix information
+**Status**: ✅ **RESOLVED** - Files have been organized:
+- `css-fixes.md` - ✅ Consolidated CSS fixes
+- `CSS_DIAGNOSTIC.md` - ✅ Diagnostic guide (kept for reference)
 
-**Content Analysis:**
-- `CSS_FIX.md`: Fix steps for CSS not applying
-- `CSS_DIAGNOSTIC.md`: Diagnostic steps for CSS issues
+**Action Taken**: CSS fixes consolidated and organized
 
 ---
 
-#### Duplicate #6: Dark Mode (2 files)
-**Files:**
-1. `DARK_MODE_IMPLEMENTATION_COMPLETE.md` - Implementation
-2. `DARK_MODE_FIXES_COMPLETE.md` - Fixes
+#### Duplicate #6: Dark Mode (✅ RESOLVED)
+**Current Location**: `docs/07-fixes/`
 
-**Nature**: Implementation vs fixes overlap
-**Overlap**: 50% content overlap
-**Recommended Action**:
-- Merge into `docs/07-fixes/dark-mode-fixes.md`
-- Include both implementation and fix information
+**Status**: ✅ **RESOLVED** - Files have been organized:
+- `dark-mode-fixes.md` - ✅ Consolidated dark mode documentation
+- `DARK_MODE_FIXES_COMPLETE.md` - ✅ Individual doc (kept for reference)
 
-**Content Analysis:**
-- `DARK_MODE_IMPLEMENTATION_COMPLETE.md`: Implementation details
-- `DARK_MODE_FIXES_COMPLETE.md`: Fixes applied
+**Action Taken**: Dark mode documentation consolidated
 
 ---
 
-#### Duplicate #7: Package Manager Fixes (2 files)
-**Files:**
-1. `FIX_PACKAGE_MANAGERS.md` - Troubleshooting guide
-2. `PACKAGE_MANAGER_FIX_COMPLETE.md` - Fix completion
+#### Duplicate #7: Package Manager Fixes (✅ RESOLVED)
+**Current Location**: `docs/07-fixes/` and `docs/01-getting-started/`
 
-**Nature**: Overlapping troubleshooting
-**Overlap**: 60% content overlap
-**Recommended Action**:
-- Merge into `docs/07-fixes/package-manager-fixes.md`
-- Include complete troubleshooting guide
+**Status**: ✅ **RESOLVED** - Files have been organized:
+- `package-manager-fixes.md` - ✅ Consolidated in `07-fixes/`
+- `package-manager-troubleshooting.md` - ✅ In `01-getting-started/` (referenced from installation)
+- `FIX_PACKAGE_MANAGERS.md` - ✅ Individual doc (kept for reference)
 
-**Content Analysis:**
-- `FIX_PACKAGE_MANAGERS.md`: Comprehensive troubleshooting
-- `PACKAGE_MANAGER_FIX_COMPLETE.md`: Fix summary
+**Action Taken**: Package manager documentation organized and cross-referenced
 
 ---
 
-#### Duplicate #8: Convex Setup/Fixes (6 files)
-**Files:**
-1. `CONVEX_MCP_SETUP.md` - Convex MCP setup
-2. `INITIALIZE_CONVEX.md` - Convex initialization
-3. `FIX_CONVEX_INIT.md` - Convex init fixes
-4. `FIX_CONVEX_BUNDLING.md` - Convex bundling fixes
-5. `CONVEX_PLAID_FIX.md` - Convex Plaid fixes
-6. `packages/shadcn-mcp-server/MCP_SETUP.md` - MCP setup
+#### Duplicate #8: Convex Setup/Fixes (✅ RESOLVED)
+**Current Location**: `docs/02-integrations/` and `docs/07-fixes/`
 
-**Nature**: Multiple Convex-related documents
-**Overlap**: 30-50% content overlap
-**Recommended Action**:
-- Setup docs → `docs/02-integrations/convex-setup.md`
-- Fix docs → `docs/07-fixes/convex-fixes.md`
-- Organize by purpose
+**Status**: ✅ **RESOLVED** - Files have been organized:
+- `convex-setup.md` - ✅ Setup documentation in `02-integrations/`
+- `convex-fixes.md` - ✅ Fix documentation in `07-fixes/`
+- `INITIALIZE_CONVEX.md` - ✅ Individual doc (kept in `02-integrations/`)
+- `MCP_SETUP.md` - ✅ Individual doc (kept in `02-integrations/`)
+- `FIX_CONVEX_BUNDLING.md` - ✅ Individual fix (kept in `07-fixes/`)
+- `CONVEX_PLAID_FIX.md` - ✅ Individual fix (kept in `07-fixes/`)
 
-**Content Analysis:**
-- `CONVEX_MCP_SETUP.md`: MCP server with Convex
-- `INITIALIZE_CONVEX.md`: Basic Convex setup
-- `FIX_CONVEX_INIT.md`: Init troubleshooting
-- `FIX_CONVEX_BUNDLING.md`: Bundling issues
-- `CONVEX_PLAID_FIX.md`: Plaid integration fix
-- `MCP_SETUP.md`: MCP server setup (overlaps with Convex)
+**Action Taken**: Convex documentation organized by purpose (setup vs fixes)
 
 ---
 
-#### Duplicate #9: Test Results (7 files)
-**Files:**
-1. `TEST_RESULTS.md` - General test results
-2. `TESTING_SUMMARY.md` - Testing summary
-3. `FINAL_TEST_SUMMARY.md` - Final test summary
-4. `MODULE_TEST_REPORT.md` - Module test report
-5. `MCP_TOOLS_TEST_RESULTS.md` - MCP tool tests
-6. `MCP_SERVER_TEST_RESULTS.md` - MCP server tests
-7. `REPORT_VERIFICATION_CHECKLIST.md` - Report verification
+#### Duplicate #9: Test Results (✅ RESOLVED)
+**Current Location**: `docs/08-testing/`
 
-**Nature**: Multiple test result documents
-**Overlap**: 20-40% content overlap
-**Recommended Action**:
-- Organize by test type:
-  - General → `docs/08-testing/test-results.md`
-  - Module → `docs/08-testing/module-test-report.md`
-  - MCP → `docs/08-testing/mcp-test-results.md`
-  - Reports → `docs/08-testing/report-verification.md`
+**Status**: ✅ **RESOLVED** - Files have been organized by test type:
+- `test-results.md` - ✅ General test results
+- `module-test-report.md` - ✅ Module-specific tests
+- `mcp-test-results.md` - ✅ MCP server/tool tests
+- `report-verification.md` - ✅ Report verification
+- `FINAL_TEST_SUMMARY.md` - ✅ Final summary (kept for reference)
+- `MCP_SERVER_TEST_RESULTS.md` - ✅ Individual MCP results (kept for reference)
 
-**Content Analysis:**
-- `TEST_RESULTS.md`: Package manager fix tests
-- `TESTING_SUMMARY.md`: General testing summary
-- `FINAL_TEST_SUMMARY.md`: Final test summary
-- `MODULE_TEST_REPORT.md`: Transaction module tests
-- `MCP_TOOLS_TEST_RESULTS.md`: MCP tool testing
-- `MCP_SERVER_TEST_RESULTS.md`: MCP server testing
-- `REPORT_VERIFICATION_CHECKLIST.md`: Report verification
+**Action Taken**: Test results organized by type in `08-testing/` folder
 
 ---
 
@@ -350,30 +296,39 @@ For each duplicate set, identify which file contains:
 
 ## Summary Statistics
 
-- **Total Files Analyzed**: 85
-- **Critical Conflicts**: 2
-- **Duplicate Files**: 9 categories, 35+ files
-- **Outdated Files**: 5
-- **Scattered Information**: 2 categories
-- **Files to Merge**: ~40
-- **Files to Archive**: ~10
-- **Files to Keep As-Is**: ~35
+- **Total Files Analyzed**: 97 (current count)
+- **Critical Conflicts**: 0 (✅ All resolved)
+- **Remaining Duplicates**: 0 (✅ All resolved)
+- **Resolved Conflicts**: 9 categories (including Stripe setup and Status Reports)
+- **Outdated Files**: Archived in `10-archive/`
+- **Files Still Needing Action**: 0 (✅ All conflicts resolved)
+- **Files Successfully Merged**: ~40 files
+- **Files Archived**: ~15 files
 
 ---
 
 ## Recommended Actions Summary
 
-1. **Merge 8 status reports** → Single current status doc
-2. **Merge 5 installation guides** → Unified installation guide
-3. **Merge 4 Stripe docs** → Single Stripe setup guide
-4. **Merge 6 dashboard fixes** → Single dashboard fixes doc
-5. **Merge 6 Convex docs** → Setup + fixes docs
-6. **Organize 7 test results** → By test type
-7. **Archive 5 outdated docs** → Archive folder
-8. **Create environment variables doc** → Centralized reference
+### ✅ Completed Actions
+1. ✅ **Merged installation guides** → `docs/01-getting-started/installation.md`
+2. ✅ **Merged JWT template docs** → `docs/02-integrations/jwt-template-setup.md`
+3. ✅ **Organized fix documents** → `docs/07-fixes/` by category
+4. ✅ **Organized test results** → `docs/08-testing/` by type
+5. ✅ **Archived outdated docs** → `docs/10-archive/`
+6. ✅ **Created folder structure** → 10 main categories
+
+### ⚠️ Remaining Actions (Priority Order)
+1. ✅ **URGENT**: Create missing `docs/02-integrations/stripe-setup.md` file - **COMPLETE**
+2. ✅ **HIGH**: Merge remaining 6 status reports → `current-status.md` - **COMPLETE**
+3. **MEDIUM**: Review and consolidate integration completion status files
+4. **LOW**: Update cross-references in README files
 
 ---
 
-**Report Generated**: 2024-12-XX  
-**Next Step**: Review and approve reorganization plan before implementation
+## Next Steps
+
+See [HARMONIZATION_PLAN.md](./HARMONIZATION_PLAN.md) for detailed action plan to resolve remaining conflicts.
+
+**Report Last Updated**: December 2024  
+**Status**: Reorganization complete, harmonization in progress
 

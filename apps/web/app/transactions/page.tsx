@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { Id } from "../../convex/_generated/dataModel";
 import { useToast } from "@/lib/use-toast";
 import { formatTransactionDate, parseLocalDate } from "@/lib/dateUtils";
+import { useOrgIdOptional } from "../hooks/useOrgId";
 
 export default function TransactionsPage() {
   const { user, isLoaded } = useUser();
@@ -42,8 +43,9 @@ export default function TransactionsPage() {
   const onboardingStatus = useQuery(api.onboarding.getOnboardingStatus);
   
   // Query transactions
+  const { orgId } = useOrgIdOptional();
   const mockTransactions = useQuery(api.plaid.getMockTransactions, { limit: 100 });
-  const pendingEntries = useQuery(api.transactions.getPendingTransactions);
+  const pendingEntries = useQuery(api.transactions.getPendingTransactions, orgId ? { orgId } : "skip");
 
   // Transaction filter state
   const [searchQuery, setSearchQuery] = useState("");

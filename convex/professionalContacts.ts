@@ -47,7 +47,7 @@ export const addProfessionalContact = mutation({
     email: v.optional(v.string()),
     website: v.optional(v.string()),
     notes: v.optional(v.string()),
-    isPrimary: v.optional(v.boolean()),
+    setAsPrimaryAt: v.optional(v.union(v.number(), v.null())),
     tags: v.optional(v.array(v.string())),
     fileUrl: v.optional(v.string()),
   },
@@ -66,28 +66,41 @@ export const addProfessionalContact = mutation({
       throw new Error("User not found");
     }
 
+    const now = Date.now();
+    const contactData: any = {
+      userId: user._id,
+      contactType: args.contactType,
+      category: args.category,
+      name: args.name,
+      firmCompany: args.firmCompany,
+      phone: args.phone,
+      email: args.email,
+      website: args.website,
+      notes: args.notes,
+      tags: args.tags,
+      fileUrl: args.fileUrl,
+      createdAt: now,
+      updatedAt: now,
+    };
+
     // If setting as primary, unset others of the same type
-    if (args.isPrimary) {
+    if (args.setAsPrimaryAt !== undefined && args.setAsPrimaryAt !== null) {
       const existingContacts = await ctx.db
         .query("professional_contacts")
         .withIndex("by_user", (q) => q.eq("userId", user._id))
         .collect();
 
       const existingPrimary = existingContacts.find(
-        (c) => c.contactType === args.contactType && c.isPrimary === true
+        (c) => c.contactType === args.contactType && c.setAsPrimaryAt !== null && c.setAsPrimaryAt !== undefined
       );
 
       if (existingPrimary) {
-        await ctx.db.patch(existingPrimary._id, { isPrimary: false });
+        await ctx.db.patch(existingPrimary._id, { setAsPrimaryAt: undefined });
       }
+      contactData.setAsPrimaryAt = args.setAsPrimaryAt;
     }
 
-    const contactId = await ctx.db.insert("professional_contacts", {
-      userId: user._id,
-      ...args,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    const contactId = await ctx.db.insert("professional_contacts", contactData);
 
     return { success: true, id: contactId };
   },
@@ -107,7 +120,7 @@ export const updateProfessionalContact = mutation({
     email: v.optional(v.string()),
     website: v.optional(v.string()),
     notes: v.optional(v.string()),
-    isPrimary: v.optional(v.boolean()),
+    setAsPrimaryAt: v.optional(v.union(v.number(), v.null())),
     tags: v.optional(v.array(v.string())),
     fileUrl: v.optional(v.string()),
   },
@@ -131,28 +144,33 @@ export const updateProfessionalContact = mutation({
       throw new Error("Contact not found or access denied");
     }
 
-    // If setting as primary, unset others of the same type
-    if (args.isPrimary) {
-      const contactType = args.contactType || contact.contactType;
-      const existingContacts = await ctx.db
-        .query("professional_contacts")
-        .withIndex("by_user", (q) => q.eq("userId", user._id))
-        .collect();
-
-      const existingPrimary = existingContacts.find(
-        (c) => c.contactType === contactType && c.isPrimary === true && c._id !== args.id
-      );
-
-      if (existingPrimary) {
-        await ctx.db.patch(existingPrimary._id, { isPrimary: false });
-      }
-    }
-
-    const { id, ...updateData } = args;
-    await ctx.db.patch(args.id, {
+    const { id, setAsPrimaryAt, ...updateData } = args;
+    const finalUpdateData: any = {
       ...updateData,
       updatedAt: Date.now(),
-    });
+    };
+
+    // If setting as primary, unset others of the same type
+    if (setAsPrimaryAt !== undefined) {
+      if (setAsPrimaryAt !== null) {
+        const contactType = args.contactType || contact.contactType;
+        const existingContacts = await ctx.db
+          .query("professional_contacts")
+          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .collect();
+
+        const existingPrimary = existingContacts.find(
+          (c) => c._id !== args.id && c.contactType === contactType && c.setAsPrimaryAt !== null && c.setAsPrimaryAt !== undefined
+        );
+
+        if (existingPrimary) {
+          await ctx.db.patch(existingPrimary._id, { setAsPrimaryAt: undefined });
+        }
+      }
+      finalUpdateData.setAsPrimaryAt = setAsPrimaryAt;
+    }
+
+    await ctx.db.patch(args.id, finalUpdateData);
 
     return { success: true };
   },

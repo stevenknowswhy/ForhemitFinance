@@ -37,6 +37,24 @@ export const getCurrentUser = query({
 });
 
 /**
+ * Get user by email (for frontend org context)
+ * Phase 1: Multi-tenant support
+ */
+export const getUserByEmail = query({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    return user;
+  },
+});
+
+/**
  * Create or update user from Clerk identity
  * Called after user signs in/up
  */

@@ -5,11 +5,13 @@
  * Collects business type and sets up initial accounts
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { Header } from "../components/Header";
+import { useOrgIdOptional } from "../hooks/useOrgId";
+import { useOrgContext } from "../contexts/OrgContext";
 
 const BUSINESS_TYPES = [
   { value: "creator", label: "Creator (Video, Design, Writing, Coaching)" },
@@ -28,11 +30,119 @@ export default function OnboardingPage() {
 
   const onboardingStatus = useQuery(api.onboarding.getOnboardingStatus);
   const completeOnboarding = useMutation(api.onboarding.completeOnboarding);
+  const [justCompleted, setJustCompleted] = useState(false);
+  const [completedOrgId, setCompletedOrgId] = useState<string | null>(null);
+  const { orgId } = useOrgIdOptional(); // Check if org exists (source of truth)
+  const { setCurrentOrg } = useOrgContext(); // To manually set org after creation
 
-  // Redirect if already onboarded
-  if (onboardingStatus?.hasCompletedOnboarding) {
-    router.push("/dashboard");
-    return null;
+  // Redirect if already onboarded (use useEffect to avoid render-time navigation)
+  // Check orgId first (source of truth), then onboarding status
+  // But skip redirect if we just completed onboarding (to avoid race condition)
+  useEffect(() => {
+    // If orgId exists, user is definitely onboarded - redirect immediately
+    if (orgId && !justCompleted) {
+      const timeoutId = setTimeout(() => {
+        router.push("/dashboard");
+      }, 300);
+      return () => clearTimeout(timeoutId);
+    }
+    
+    // Otherwise check onboarding status
+    if (onboardingStatus?.hasCompletedOnboarding && !justCompleted) {
+      // Add a delay to allow queries to update
+      const timeoutId = setTimeout(() => {
+        router.push("/dashboard");
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [orgId, onboardingStatus?.hasCompletedOnboarding, justCompleted, router]);
+
+  // After completing onboarding, redirect when:
+  // 1. We have the orgId from mutation result AND it's set in context, OR
+  // 2. OrgId from context becomes available, OR
+  // 3. Status query updates to show complete, OR
+  // 4. After a timeout (fallback)
+  useEffect(() => {
+    if (justCompleted) {
+      // Priority 1: Use orgId from mutation result (fastest)
+      // Wait a moment to ensure context has updated
+      if (completedOrgId) {
+        // Give context a moment to update, then redirect
+        const timeoutId = setTimeout(() => {
+          // Clear the sessionStorage flag before redirecting
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('justCompletedOnboarding');
+          }
+          router.push("/dashboard");
+        }, 800); // Small delay to ensure context state is updated
+        return () => clearTimeout(timeoutId);
+      }
+      
+      // Priority 2: If orgId from context exists, redirect immediately
+      if (orgId) {
+        const timeoutId = setTimeout(() => {
+          // Clear the sessionStorage flag before redirecting
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('justCompletedOnboarding');
+          }
+          router.push("/dashboard");
+        }, 500);
+        return () => clearTimeout(timeoutId);
+      }
+      
+      // Priority 3: If status query has updated, redirect
+      if (onboardingStatus?.hasCompletedOnboarding) {
+        const timeoutId = setTimeout(() => {
+          // Clear the sessionStorage flag before redirecting
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('justCompletedOnboarding');
+          }
+          router.push("/dashboard");
+        }, 500);
+        return () => clearTimeout(timeoutId);
+      }
+      
+      // Fallback: After 2 seconds, redirect anyway (mutation completed successfully)
+      const fallbackTimeout = setTimeout(() => {
+        // Clear the sessionStorage flag before redirecting
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('justCompletedOnboarding');
+        }
+        router.push("/dashboard");
+      }, 2000);
+      
+      return () => clearTimeout(fallbackTimeout);
+    }
+  }, [justCompleted, completedOrgId, onboardingStatus?.hasCompletedOnboarding, orgId, router]);
+
+  // Show loading while checking onboarding status
+  if (onboardingStatus === undefined) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  // Don't render form if already onboarded (redirect will happen via useEffect)
+  // Also check orgId as source of truth (from context or mutation result)
+  // But if we just completed, show a success message
+  // IMPORTANT: If user has orgId, they're already onboarded - redirect immediately
+  if (orgId || onboardingStatus?.hasCompletedOnboarding || completedOrgId || justCompleted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-muted-foreground mb-2">
+            {justCompleted ? "Setting up your account..." : "Redirecting..."}
+          </div>
+          {justCompleted && (
+            <div className="text-sm text-muted-foreground">
+              This will just take a moment...
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,25 +151,34 @@ export default function OnboardingPage() {
 
     setIsLoading(true);
     try {
-      await completeOnboarding({
+      const result = await completeOnboarding({
         businessType: businessType as any,
       });
-      router.push("/dashboard");
+      
+      // Store the orgId from the mutation result for immediate use
+      if (result?.orgId) {
+        setCompletedOrgId(result.orgId);
+        
+        // Immediately set orgId in context and localStorage
+        // This bypasses the query dependency and prevents redirect loop
+        await setCurrentOrg(result.orgId);
+        
+        // Set sessionStorage flag to indicate onboarding just completed
+        // This gives OrgRouteGuard more time before redirecting
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('justCompletedOnboarding', 'true');
+        }
+      }
+      
+      // Mark as just completed - the query will automatically update
+      // and the useEffect will handle the redirect once status updates
+      setJustCompleted(true);
     } catch (error) {
       console.error("Onboarding error:", error);
       alert("Something went wrong. Please try again.");
-    } finally {
       setIsLoading(false);
     }
   };
-
-  if (onboardingStatus === undefined) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">

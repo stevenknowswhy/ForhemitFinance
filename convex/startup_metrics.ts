@@ -5,41 +5,38 @@
 
 import { v } from "convex/values";
 import { query } from "./_generated/server";
+import { api } from "./_generated/api";
+import { getOrgContext } from "./helpers/orgContext";
+import { requirePermission } from "./rbac";
+import { PERMISSIONS } from "./permissions";
 
 /**
  * Calculate monthly burn rate
  * Burn rate = (Starting cash - Ending cash) / Number of months
+ * Phase 1: Updated to use org context
  */
 export const getBurnRate = query({
   args: {
     months: v.optional(v.number()), // Default to last 3 months
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.email) {
-      throw new Error("Not authenticated or email not found");
-    }
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
 
-    const email = identity.email;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
 
     const months = args.months || 3;
     const now = Date.now();
     const startDate = new Date(now);
     startDate.setMonth(startDate.getMonth() - months);
 
-    // Get all cash accounts (asset accounts)
+    // Get all cash accounts (asset accounts) - org-scoped
     const cashAccounts = await ctx.db
       .query("accounts")
-      .withIndex("by_user_type", (q) =>
-        q.eq("userId", user._id).eq("type", "asset")
+      .withIndex("by_org_type", (q) =>
+        q.eq("orgId", orgId).eq("type", "asset")
       )
       .collect();
 
@@ -73,12 +70,27 @@ export const getBurnRate = query({
 
 /**
  * Calculate cash runway (months until $0 at current burn rate)
+ * Phase 1: Updated to use org context
  */
 export const getRunway = query({
-  args: {},
-  handler: async (ctx) => {
-    const burnRate = await ctx.runQuery("startup_metrics:getBurnRate" as any, {
+  args: {
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
+  },
+  handler: async (ctx, args): Promise<{
+    monthsRemaining: number;
+    currentBalance: number;
+    monthlyBurn: number;
+    status: "critical" | "warning" | "healthy";
+  }> => {
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
+
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
+
+    const burnRate = await ctx.runQuery(api.startup_metrics.getBurnRate, {
       months: 3,
+      orgId: orgId,
     });
 
     return {
@@ -92,44 +104,37 @@ export const getRunway = query({
 
 /**
  * Get top spend categories for the period
+ * Phase 1: Updated to use org context
  */
 export const getTopSpendCategories = query({
   args: {
     months: v.optional(v.number()),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.email) {
-      throw new Error("Not authenticated or email not found");
-    }
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
 
-    const email = identity.email;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
 
     const months = args.months || 1;
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
 
-    // Get expense accounts
+    // Get expense accounts - org-scoped
     const expenseAccounts = await ctx.db
       .query("accounts")
-      .withIndex("by_user_type", (q) =>
-        q.eq("userId", user._id).eq("type", "expense")
+      .withIndex("by_org_type", (q) =>
+        q.eq("orgId", orgId).eq("type", "expense")
       )
       .collect();
 
-    // Get all expense entries in the period
+    // Get all expense entries in the period - org-scoped
     const entries = await ctx.db
       .query("entries_final")
-      .withIndex("by_user_date", (q) =>
-        q.eq("userId", user._id).gte("date", startDate.getTime())
+      .withIndex("by_org_date", (q) =>
+        q.eq("orgId", orgId).gte("date", startDate.getTime())
       )
       .collect();
 

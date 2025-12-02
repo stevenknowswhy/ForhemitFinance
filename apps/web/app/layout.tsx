@@ -3,10 +3,12 @@ import { Inter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
+import { OrgContextProvider } from "./contexts/OrgContext";
 import { StripeProvider } from "./components/StripeProvider";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ImpersonationBanner } from "./components/ImpersonationBanner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -37,10 +39,13 @@ export default function RootLayout({
           >
             <StripeProvider>
               <ConvexClientProvider>
-                <ErrorBoundary>
-                  {children}
-                  <Toaster />
-                </ErrorBoundary>
+                <OrgContextProvider>
+                  <ErrorBoundary>
+                    <ImpersonationBanner />
+                    {children}
+                    <Toaster />
+                  </ErrorBoundary>
+                </OrgContextProvider>
               </ConvexClientProvider>
             </StripeProvider>
           </ThemeProvider>

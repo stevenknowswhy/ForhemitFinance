@@ -212,12 +212,12 @@ export function generateMonthlyTrends(
   // Process transactions backwards to calculate running balance
   const sortedTransactions = [...filteredTransactions].sort(
     (a, b) => {
-      const dateA = typeof a.dateTimestamp === 'number'
+      const dateA: number = typeof a.dateTimestamp === 'number'
         ? a.dateTimestamp
-        : parseLocalDate(a.date).getTime();
-      const dateB = typeof b.dateTimestamp === 'number'
+        : parseLocalDate(String(a.date)).getTime();
+      const dateB: number = typeof b.dateTimestamp === 'number'
         ? b.dateTimestamp
-        : parseLocalDate(b.date).getTime();
+        : parseLocalDate(String(b.date)).getTime();
       return dateB - dateA;
     }
   );

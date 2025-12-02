@@ -10,6 +10,9 @@ import { v } from "convex/values";
 import { action, mutation, query, internalMutation } from "./_generated/server";
 import { api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { getOrgContext } from "./helpers/orgContext";
+import { requirePermission } from "./rbac";
+import { PERMISSIONS } from "./permissions";
 
 // Plaid types - will be loaded dynamically at runtime
 type PlaidApiType = any;
@@ -154,12 +157,14 @@ export const createLinkToken: ReturnType<typeof action> = action({
 /**
  * Exchange Plaid public token for access token
  * Called after user completes Plaid Link flow
+ * Phase 1: Updated to use org context
  */
 export const exchangePublicToken: ReturnType<typeof action> = action({
   args: {
     publicToken: v.string(),
     institutionId: v.string(),
     institutionName: v.string(),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -170,6 +175,14 @@ export const exchangePublicToken: ReturnType<typeof action> = action({
     const user = await ctx.runQuery(api.users.getCurrentUser);
     if (!user) {
       throw new Error("User not found");
+    }
+
+    // Phase 1: Get org context
+    const orgContext = await ctx.runQuery(api.helpers.index.getOrgContextQuery, {
+      orgId: args.orgId,
+    });
+    if (!orgContext) {
+      throw new Error("Organization context required");
     }
 
     const plaidClient = await getPlaidClient();
@@ -193,6 +206,7 @@ export const exchangePublicToken: ReturnType<typeof action> = action({
         plaidInstitutionId: args.institutionId,
         name: args.institutionName,
         accessTokenEncrypted: accessToken, // TODO: Encrypt this in production
+        orgId: orgContext.orgId, // Phase 1: Pass orgId
       });
 
       // Trigger initial account and transaction sync
@@ -211,6 +225,7 @@ export const exchangePublicToken: ReturnType<typeof action> = action({
 
 /**
  * Store institution connection in database
+ * Phase 1: Updated to use org context
  */
 export const storeInstitution = mutation({
   args: {
@@ -218,24 +233,15 @@ export const storeInstitution = mutation({
     plaidInstitutionId: v.string(),
     name: v.string(),
     accessTokenEncrypted: v.string(),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.MANAGE_INTEGRATIONS);
 
     const institutionId = await ctx.db.insert("institutions", {
-      userId: user._id,
+      userId: userId, // Keep for backward compatibility
+      orgId: orgId, // Phase 1: Add orgId
       plaidItemId: args.plaidItemId,
       plaidInstitutionId: args.plaidInstitutionId,
       name: args.name,
@@ -463,7 +469,8 @@ export const syncTransactions: ReturnType<typeof action> = action({
           description: txn.name,
           category: txn.category || undefined,
           // plaidCategory: txn.category || undefined, // Not in schema, removed
-          isPending: txn.pending,
+          status: txn.pending ? "pending" : "posted",
+          // postedAt: txn.pending ? undefined : Date.now(), // TODO: Re-enable after codegen
         });
 
         // Process transaction to generate proposed entry
@@ -704,7 +711,8 @@ export const mockConnectBank = mutation({
           ? Math.floor(Math.random() * 10000) + 1000 // Available credit
           : Math.floor(Math.random() * 45000) + 4500, // Available balance
         currency: "USD",
-        isActive: true,
+        status: "active",
+        activatedAt: Date.now(),
         connectedAt: Date.now(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -772,6 +780,8 @@ async function generateMockTransactionsInternal(
         const category = categories[Math.floor(Math.random() * categories.length)];
         const isIncome = category.name === "Income";
         const isPending = day < 2 && Math.random() < 0.3; // 30% of recent transactions pending
+        const status = isPending ? "pending" : "posted";
+        const now = Date.now();
         
         // Calculate transaction date (spread throughout the day)
         const daysAgo = day;
@@ -800,7 +810,8 @@ async function generateMockTransactionsInternal(
           merchantName: merchant,
           category: [category.name], // Array format for compatibility
           categoryName: category.name, // Single name for easy access
-          isPending: isPending,
+          status: status,
+          // postedAt: status === "posted" ? now : undefined, // TODO: Re-enable after codegen
           source: "mock",
           transactionType: isIncome ? "credit" : "debit",
           location: {
@@ -1020,34 +1031,27 @@ export const getMockTransactionAnalytics = query({
 
 /**
  * Get transaction analytics filtered by business/personal classification
+ * Phase 1: Updated to use org context
  */
 export const getFilteredTransactionAnalytics = query({
   args: {
     days: v.optional(v.number()),
     filterType: v.optional(v.union(v.literal("business"), v.literal("personal"), v.literal("all"))),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
-      .first();
-
-    if (!user) {
-      return null;
-    }
+    // Phase 1: Use org context helper
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
 
     const days = args.days || 30;
     const startDate = Date.now() - (days * 24 * 60 * 60 * 1000);
     const filterType = args.filterType || "all";
 
+    // Phase 1: Query by orgId instead of userId
     const allTransactions = await ctx.db
       .query("transactions_raw")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
 
     // Filter by date

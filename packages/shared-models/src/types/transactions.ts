@@ -14,7 +14,10 @@ export interface RawTransaction {
   category?: string[];
   plaidCategory?: string[];
   description: string;
-  isPending: boolean;
+  status: 'pending' | 'posted' | 'cleared' | 'reconciled';
+  postedAt?: number;
+  clearedAt?: number;
+  reconciledAt?: number;
   source: 'plaid' | 'manual' | 'receipt';
   receiptUrl?: string;
   createdAt: number;

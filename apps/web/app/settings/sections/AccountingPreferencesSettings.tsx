@@ -3,38 +3,57 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useOrg } from "../../contexts/OrgContext";
 import { useToast } from "@/components/ui/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calculator } from "lucide-react";
+import { Calculator, Loader2 } from "lucide-react";
 
 export function AccountingPreferencesSettings() {
   const { toast } = useToast();
-  const currentUser = useQuery(api.users.getCurrentUser);
-  const updatePreferences = useMutation(api.users.updatePreferences);
+  const { currentOrgId, currentOrg } = useOrg();
+
+  const businessProfile = useQuery(api.businessProfiles.getBusinessProfile,
+    currentOrgId ? { orgId: currentOrgId } : "skip"
+  );
+
+  const updateOrganization = useMutation(api.organizations.updateOrganization);
+  const updateBusinessProfile = useMutation(api.businessProfiles.updateBusinessProfile);
 
   const [fiscalYearStart, setFiscalYearStart] = useState("01-01");
   const [accountingMethod, setAccountingMethod] = useState("cash");
   const [businessEntityType, setBusinessEntityType] = useState("sole_proprietorship");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Load preferences from backend
   useEffect(() => {
-    if (currentUser?.preferences) {
-      setFiscalYearStart(currentUser.preferences.fiscalYearStart || "01-01");
-      setAccountingMethod(currentUser.preferences.accountingMethod || "cash");
-      setBusinessEntityType(currentUser.preferences.businessEntityType || "sole_proprietorship");
+    if (currentOrg) {
+      setFiscalYearStart(currentOrg.fiscalYearStart || "01-01");
+      setAccountingMethod(currentOrg.accountingMethod || "cash");
     }
-  }, [currentUser]);
+    if (businessProfile) {
+      setBusinessEntityType(businessProfile.entityType || "sole_proprietorship");
+    }
+  }, [currentOrg, businessProfile]);
 
   const handleSave = async () => {
+    if (!currentOrgId) return;
+
+    setIsSaving(true);
     try {
-      await updatePreferences({
-        fiscalYearStart: fiscalYearStart,
+      // Update Organization Settings
+      await updateOrganization({
+        orgId: currentOrgId,
+        fiscalYearStart,
         accountingMethod: accountingMethod as "cash" | "accrual",
-        businessEntityType: businessEntityType as "sole_proprietorship" | "llc" | "s_corp" | "c_corp" | "partnership" | "nonprofit",
+      });
+
+      // Update Business Profile (Entity Type)
+      await updateBusinessProfile({
+        entityType: businessEntityType,
       });
 
       toast({
@@ -47,8 +66,12 @@ export function AccountingPreferencesSettings() {
         description: "Failed to save preferences. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
+
+  if (!currentOrgId) return null;
 
   return (
     <div className="space-y-4 py-4">
@@ -124,6 +147,7 @@ export function AccountingPreferencesSettings() {
                 <SelectItem value="s_corp">S-Corporation</SelectItem>
                 <SelectItem value="c_corp">C-Corporation</SelectItem>
                 <SelectItem value="partnership">Partnership</SelectItem>
+                <SelectItem value="nonprofit">Nonprofit</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -144,7 +168,8 @@ export function AccountingPreferencesSettings() {
         </CardContent>
       </Card>
 
-      <Button onClick={handleSave} className="w-full">
+      <Button onClick={handleSave} className="w-full" disabled={isSaving}>
+        {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
         Save Preferences
       </Button>
     </div>

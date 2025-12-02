@@ -55,9 +55,11 @@ Product requirements, roadmap, and feature specifications.
 Development guides, testing, and build instructions.
 
 **Key Documents:**
+- [Phase 1 Completion Guide](./05-development/PHASE_1_COMPLETION_GUIDE.md) - **Complete Phase 1 MVP** ⭐
 - [Testing Guide](./05-development/testing-guide.md) - Testing instructions
 - [Testing Checklist](./05-development/testing-checklist.md) - Testing checklist
 - [Build and Test](./05-development/build-and-test.md) - Build instructions
+- [Deployment Guide](./05-development/deployment-guide.md) - Production deployment
 
 ---
 
@@ -132,7 +134,12 @@ Archived and deprecated documentation.
 - [Roadmap](./04-product/roadmap.md) - Strategic roadmap
 - [Phase 1 PRD](./04-product/prd-phase-1-mvp.md) - MVP requirements
 
+### Development & Completion
+- [Phase 1 Completion Guide](./05-development/PHASE_1_COMPLETION_GUIDE.md) - **Complete the MVP** ⭐
+- [Deployment Guide](./05-development/deployment-guide.md) - Deploy to production
+
 ### Troubleshooting
+- [Troubleshooting Guide](./01-getting-started/troubleshooting.md) - Common issues
 - [Package Manager Issues](./01-getting-started/package-manager-troubleshooting.md)
 - [Dashboard Fixes](./07-fixes/dashboard-fixes.md)
 - [Runtime Errors](./07-fixes/runtime-errors.md)

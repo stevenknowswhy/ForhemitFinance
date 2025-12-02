@@ -10,6 +10,12 @@ export default defineSchema({
   users: defineTable({
     email: v.string(),
     name: v.optional(v.string()),
+    status: v.optional(v.union(
+      v.literal("active"),
+      v.literal("invited"),
+      v.literal("disabled")
+    )),
+    isSuperAdmin: v.optional(v.boolean()), // Phase 2: Super admin flag
     businessType: v.optional(v.union(
       v.literal("creator"),
       v.literal("tradesperson"),
@@ -82,9 +88,125 @@ export default defineSchema({
   })
     .index("by_email", ["email"]),
 
+  // Organizations (Phase 1: Multi-tenant)
+  organizations: defineTable({
+    name: v.string(),
+    type: v.union(
+      v.literal("business"),
+      v.literal("personal")
+    ),
+    status: v.union(
+      v.literal("active"),
+      v.literal("trial"),
+      v.literal("suspended"),
+      v.literal("deleted")
+    ),
+    baseCurrency: v.string(),
+    fiscalYearStart: v.optional(v.string()),
+    accountingMethod: v.optional(v.union(v.literal("cash"), v.literal("accrual"))),
+    lastActiveAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status", ["status"]),
+
+  // Memberships (Phase 1: User ↔ Org relationships)
+  memberships: defineTable({
+    userId: v.id("users"),
+    orgId: v.id("organizations"),
+    role: v.union(
+      v.literal("ORG_OWNER"),
+      v.literal("ORG_ADMIN"),
+      v.literal("BOOKKEEPER"),
+      v.literal("VIEWER")
+    ),
+    invitedBy: v.optional(v.id("users")),
+    invitedAt: v.optional(v.number()),
+    joinedAt: v.optional(v.number()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("invited"),
+      v.literal("disabled")
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
+    .index("by_user_org", ["userId", "orgId"]),
+
+  // Plans (Phase 1: Subscription plans)
+  plans: defineTable({
+    name: v.string(), // "starter", "pro", "enterprise"
+    displayName: v.string(),
+    limits: v.object({
+      maxUsers: v.optional(v.number()),
+      maxTransactions: v.optional(v.number()),
+      features: v.array(v.string()), // ["ai_stories", "advanced_reports", etc.]
+    }),
+    priceMonthly: v.optional(v.number()),
+    priceYearly: v.optional(v.number()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  }),
+
+  // Subscriptions (Phase 1: Org subscriptions)
+  subscriptions: defineTable({
+    orgId: v.id("organizations"),
+    planId: v.id("plans"),
+    status: v.union(
+      v.literal("active"),
+      v.literal("trialing"),
+      v.literal("past_due"),
+      v.literal("canceled"),
+      v.literal("suspended")
+    ),
+    trialEndsAt: v.optional(v.number()),
+    renewsAt: v.optional(v.number()),
+    canceledAt: v.optional(v.number()),
+    stripeSubscriptionId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_status", ["status"]),
+
+  // Audit Logs (Phase 1: Action tracking)
+  audit_logs: defineTable({
+    orgId: v.optional(v.id("organizations")), // Nullable for global/super actions
+    actorUserId: v.id("users"),
+    actorRole: v.optional(v.string()), // Role at time of action
+    action: v.string(), // "ORG_UPDATED", "USER_INVITED", "SUBSCRIPTION_CHANGED", etc.
+    targetType: v.optional(v.string()), // "organization", "user", "subscription", etc.
+    targetId: v.optional(v.string()), // ID of the target
+    metadata: v.optional(v.any()), // JSON snapshot of changes
+    ipAddress: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    isImpersonation: v.optional(v.boolean()), // Phase 2: Impersonation flag
+    impersonatedUserId: v.optional(v.id("users")), // Phase 2: Impersonated user
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_actor", ["actorUserId"])
+    .index("by_action", ["action"])
+    .index("by_created", ["createdAt"]),
+
+  // Impersonation Sessions (Phase 2: Super admin impersonation)
+  impersonation_sessions: defineTable({
+    superAdminUserId: v.id("users"),
+    impersonatedOrgId: v.id("organizations"),
+    impersonatedUserId: v.optional(v.id("users")), // Optional: specific user persona
+    impersonatedRole: v.string(), // Role to impersonate as
+    sessionToken: v.string(), // Signed token for frontend
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+  })
+    .index("by_super_admin", ["superAdminUserId"])
+    .index("by_org", ["impersonatedOrgId"]),
+
   // Plaid institutions
   institutions: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     plaidItemId: v.string(),
     plaidInstitutionId: v.string(),
     name: v.string(),
@@ -104,11 +226,13 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
     .index("by_plaid_item", ["plaidItemId"]),
 
   // Accounts (bank accounts + chart of accounts)
   accounts: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     name: v.string(),
     type: v.union(
       v.literal("asset"),
@@ -129,18 +253,30 @@ export default defineSchema({
     accountNumber: v.optional(v.string()), // Last 4 digits
     availableBalance: v.optional(v.number()),
     currency: v.optional(v.string()),
-    isActive: v.optional(v.boolean()),
+    status: v.optional(v.union(
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("suspended"),
+      v.literal("closed"),
+      v.literal("pending_verification")
+    )),
+    isActive: v.optional(v.boolean()), // Legacy field for backward compatibility
+    activatedAt: v.optional(v.number()),
+    deactivatedAt: v.optional(v.number()),
     connectedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
     .index("by_user_type", ["userId", "type"])
+    .index("by_org_type", ["orgId", "type"])
     .index("by_bank", ["bankId"]),
 
   // Raw transactions from Plaid
   transactions_raw: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     plaidTransactionId: v.optional(v.string()),
     accountId: v.id("accounts"),
     amount: v.number(),
@@ -150,7 +286,16 @@ export default defineSchema({
     category: v.optional(v.array(v.string())),
     plaidCategory: v.optional(v.array(v.string())),
     description: v.string(),
-    isPending: v.boolean(),
+    status: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("posted"),
+      v.literal("cleared"),
+      v.literal("reconciled")
+    )), // Made optional for backward compatibility with existing data
+    isPending: v.optional(v.boolean()), // Legacy field for backward compatibility
+    postedAt: v.optional(v.number()), // Timestamp when moved from pending to posted
+    clearedAt: v.optional(v.number()), // Timestamp when cleared
+    reconciledAt: v.optional(v.number()), // Timestamp when reconciled
     isBusiness: v.optional(v.boolean()),
     source: v.union(
       v.literal("plaid"),
@@ -187,8 +332,7 @@ export default defineSchema({
     )),
     merchantName: v.optional(v.string()),
     categoryName: v.optional(v.string()), // Single category name for mock
-    isRemoved: v.optional(v.boolean()), // Marked as removed by Plaid webhook
-    removedAt: v.optional(v.number()), // Timestamp when removed
+    removedAt: v.optional(v.number()), // Timestamp when removed (null = not removed)
     location: v.optional(v.object({
       city: v.string(),
       state: v.string(),
@@ -197,14 +341,17 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
     .index("by_account", ["accountId"])
     .index("by_user_date", ["userId", "date"])
+    .index("by_org_date", ["orgId", "date"])
     .index("by_plaid_id", ["plaidTransactionId"])
     .index("by_date", ["userId", "dateTimestamp"]),
 
   // Proposed entries (waiting for approval)
   entries_proposed: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     transactionId: v.optional(v.id("transactions_raw")),
     receiptId: v.optional(v.id("receipts")),
     date: v.number(),
@@ -231,12 +378,15 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
     .index("by_user_status", ["userId", "status"])
+    .index("by_org_status", ["orgId", "status"])
     .index("by_transaction", ["transactionId"]),
 
   // Final approved entries
   entries_final: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     date: v.number(),
     memo: v.string(),
     source: v.union(
@@ -254,7 +404,9 @@ export default defineSchema({
     approvedBy: v.id("users"),
   })
     .index("by_user", ["userId"])
-    .index("by_user_date", ["userId", "date"]),
+    .index("by_org", ["orgId"])
+    .index("by_user_date", ["userId", "date"])
+    .index("by_org_date", ["orgId", "date"]),
 
   // Entry lines (debits/credits)
   entry_lines: defineTable({
@@ -272,7 +424,8 @@ export default defineSchema({
 
   // Receipts
   receipts: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     transactionId: v.optional(v.id("transactions_raw")),
     // UploadThing / storage metadata
     fileUrl: v.string(),         // public or signed URL from UploadThing
@@ -300,11 +453,13 @@ export default defineSchema({
     uploadedAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
     .index("by_transaction", ["transactionId"]),
 
   // Financial goals
   goals: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     name: v.string(),
     type: v.union(
       v.literal("save_amount"),
@@ -326,11 +481,14 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_user_status", ["userId", "status"]),
+    .index("by_org", ["orgId"])
+    .index("by_user_status", ["userId", "status"])
+    .index("by_org_status", ["orgId", "status"]),
 
   // Budgets
   budgets: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     categoryId: v.id("accounts"),
     period: v.union(
       v.literal("monthly"),
@@ -344,11 +502,13 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
     .index("by_category", ["categoryId"]),
 
   // AI insights and narratives
   ai_insights: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     type: v.union(
       v.literal("monthly_narrative"),
       v.literal("alert"),
@@ -362,11 +522,66 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_user_period", ["userId", "period"]),
+    .index("by_org", ["orgId"])
+    .index("by_user_period", ["userId", "period"])
+    .index("by_org_period", ["orgId", "period"]),
+
+  // AI Stories (Phase 2)
+  ai_stories: defineTable({
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
+    storyType: v.union(
+      v.literal("company"),
+      v.literal("banker"),
+      v.literal("investor")
+    ),
+    periodType: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("annually")
+    ),
+    periodStart: v.number(), // Timestamp
+    periodEnd: v.number(), // Timestamp
+    title: v.string(),
+    narrative: v.string(), // Full AI-generated narrative
+    summary: v.string(), // Short summary for card preview
+    keyMetrics: v.object({
+      // Story-specific metrics (flexible object for different story types)
+      revenue: v.optional(v.number()),
+      expenses: v.optional(v.number()),
+      netIncome: v.optional(v.number()),
+      burnRate: v.optional(v.number()),
+      runway: v.optional(v.number()),
+      cashFlow: v.optional(v.number()),
+      startingCash: v.optional(v.number()),
+      endingCash: v.optional(v.number()),
+      debtToIncome: v.optional(v.number()),
+      debtToRevenue: v.optional(v.number()),
+      growthRate: v.optional(v.number()),
+      revenueGrowth: v.optional(v.number()), // Revenue growth percentage
+      ltvCac: v.optional(v.number()),
+      churn: v.optional(v.number()),
+      retention: v.optional(v.number()),
+      topExpenseCategory: v.optional(v.string()), // Top expense category name
+      // Additional metrics can be added as needed
+    }),
+    userNotes: v.optional(v.string()),
+    attachments: v.optional(v.array(v.string())), // URLs or file references
+    version: v.number(), // Track edits
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
+    .index("by_user_storyType", ["userId", "storyType"])
+    .index("by_org_storyType", ["orgId", "storyType"])
+    .index("by_user_period", ["userId", "periodType", "periodStart"])
+    .index("by_org_period", ["orgId", "periodType", "periodStart"]),
 
   // Business Profiles
   business_profiles: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     // Business Branding
     businessIcon: v.optional(v.string()), // URL to uploaded business/website icon for reports
     // Core Business Identity
@@ -407,7 +622,6 @@ export default defineSchema({
       linkedIn: v.optional(v.string()),
       role: v.optional(v.string()),
     }))),
-    usesRegisteredAgent: v.optional(v.boolean()),
     registeredAgent: v.optional(v.object({
       name: v.optional(v.string()),
       company: v.optional(v.string()),
@@ -440,7 +654,24 @@ export default defineSchema({
       v.literal("urban"),
       v.literal("suburban")
     )),
-    // Certifications
+    // Certifications - structured array with dates and metadata
+    certifications: v.optional(v.array(v.object({
+      type: v.union(
+        v.literal("8a"),
+        v.literal("wosb"),
+        v.literal("mbe"),
+        v.literal("dbe"),
+        v.literal("hubzone"),
+        v.literal("gdpr"),
+        v.literal("ccpa"),
+        v.literal("iso")
+      ),
+      obtainedAt: v.number(), // Timestamp when certification was obtained
+      expiresAt: v.optional(v.number()), // Timestamp when certification expires (if applicable)
+      certificateNumber: v.optional(v.string()), // Certificate number or reference
+      notes: v.optional(v.string()), // Additional notes (e.g., ISO certification details)
+    }))),
+    // Legacy fields - kept for backward compatibility during migration
     cert8a: v.optional(v.boolean()),
     certWosb: v.optional(v.boolean()),
     certMbe: v.optional(v.boolean()),
@@ -450,11 +681,13 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_user", ["userId"]),
+    .index("by_user", ["userId"])
+    .index("by_org", ["orgId"]),
 
   // User Addresses
   addresses: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     type: v.union(
       v.literal("residential"),
       v.literal("business")
@@ -464,16 +697,19 @@ export default defineSchema({
     city: v.string(),
     state: v.string(),
     zipCode: v.string(),
-    isDefault: v.optional(v.boolean()),
+    setAsDefaultAt: v.optional(v.number()), // Timestamp when set as default (null = not default)
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_user_type", ["userId", "type"]),
+    .index("by_org", ["orgId"])
+    .index("by_user_type", ["userId", "type"])
+    .index("by_org_type", ["orgId", "type"]),
 
   // Professional Contacts
   professional_contacts: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     contactType: v.string(),
     category: v.optional(v.string()),
     name: v.string(),
@@ -482,19 +718,23 @@ export default defineSchema({
     email: v.optional(v.string()),
     website: v.optional(v.string()),
     notes: v.optional(v.string()),
-    isPrimary: v.optional(v.boolean()),
+    setAsPrimaryAt: v.optional(v.number()), // Timestamp when set as primary (null = not primary)
     tags: v.optional(v.array(v.string())),
     fileUrl: v.optional(v.string()), // For uploaded documents
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
     .index("by_user_type", ["userId", "contactType"])
-    .index("by_user_category", ["userId", "category"]),
+    .index("by_org_type", ["orgId", "contactType"])
+    .index("by_user_category", ["userId", "category"])
+    .index("by_org_category", ["orgId", "category"]),
 
   // Knowledge Base for AI Learning
   categorization_knowledge: defineTable({
-    userId: v.id("users"),
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
     // Pattern matching
     merchant: v.optional(v.string()), // Merchant name pattern
     description: v.optional(v.string()), // Description pattern
@@ -516,7 +756,31 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
     .index("by_user_merchant", ["userId", "merchant"])
-    .index("by_user_category", ["userId", "correctedCategory"]),
+    .index("by_org_merchant", ["orgId", "merchant"])
+    .index("by_user_category", ["userId", "correctedCategory"])
+    .index("by_org_category", ["orgId", "correctedCategory"]),
+
+  // Reset Events (Audit Log) - Legacy, use audit_logs for new entries
+  reset_events: defineTable({
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
+    resetType: v.union(
+      v.literal("transactions_only"),
+      v.literal("factory_reset")
+    ),
+    performedAt: v.number(),
+    performedBy: v.id("users"), // Usually same as userId, but allows for admin resets in future
+    metadata: v.optional(v.object({
+      transactionsDeleted: v.optional(v.number()),
+      accountsDeleted: v.optional(v.number()),
+      entriesDeleted: v.optional(v.number()),
+      otherDataDeleted: v.optional(v.number()),
+    })),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_type", ["userId", "resetType"])
+    .index("by_performed_at", ["performedAt"]),
 });
 

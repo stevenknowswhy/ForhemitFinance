@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { useOrg } from "../../contexts/OrgContext";
 import { useToast } from "@/components/ui/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,12 @@ import { UploadButton } from "@/lib/uploadthing";
 
 export function BusinessProfileSettings() {
   const { toast } = useToast();
-  const businessProfile = useQuery(api.businessProfiles.getBusinessProfile);
+  const { currentOrgId } = useOrg();
+
+  const businessProfile = useQuery(api.businessProfiles.getBusinessProfile,
+    currentOrgId ? { orgId: currentOrgId } : "skip"
+  );
+
   const updateBusinessProfile = useMutation(api.businessProfiles.updateBusinessProfile);
 
   // Business Branding
@@ -72,7 +78,7 @@ export function BusinessProfileSettings() {
   const [owners, setOwners] = useState<Owner[]>([
     { id: "1", name: "", ownershipPercentage: "", linkedIn: "", role: "" }
   ]);
-  const [usesRegisteredAgent, setUsesRegisteredAgent] = useState(false);
+  // Registered Agent fields
   const [registeredAgentName, setRegisteredAgentName] = useState("");
   const [registeredAgentCompany, setRegisteredAgentCompany] = useState("");
   const [registeredAgentAddress, setRegisteredAgentAddress] = useState("");
@@ -82,13 +88,17 @@ export function BusinessProfileSettings() {
   const [registeredAgentZip, setRegisteredAgentZip] = useState("");
   const [registeredAgentPhone, setRegisteredAgentPhone] = useState("");
   const [registeredAgentEmail, setRegisteredAgentEmail] = useState("");
+  // Derive usesRegisteredAgent from registeredAgent presence (convert to boolean)
+  const usesRegisteredAgent = Boolean(
+    registeredAgentName || registeredAgentCompany || registeredAgentStreet || registeredAgentCity || registeredAgentState || registeredAgentZip || registeredAgentPhone || registeredAgentEmail
+  );
 
   // Operational Details
   const [numberOfEmployees, setNumberOfEmployees] = useState("");
   const [independentContractors, setIndependentContractors] = useState("");
   const [workModel, setWorkModel] = useState("");
   const [businessDescription, setBusinessDescription] = useState("");
-  
+
   // Products/Services CRUD
   interface Product {
     id: string;
@@ -117,10 +127,10 @@ export function BusinessProfileSettings() {
   const [ccpaCompliant, setCcpaCompliant] = useState(false);
 
   const handleAddOwner = () => {
-    setOwners([...owners, { 
-      id: Date.now().toString(), 
-      name: "", 
-      ownershipPercentage: "", 
+    setOwners([...owners, {
+      id: Date.now().toString(),
+      name: "",
+      ownershipPercentage: "",
       linkedIn: "",
       role: ""
     }]);
@@ -167,7 +177,7 @@ export function BusinessProfileSettings() {
       });
       return;
     }
-    setProducts(products.map((p: any) => 
+    setProducts(products.map((p: any) =>
       p.id === id ? { ...p, name: editingProductName.trim(), isEditing: false } : p
     ));
     setEditingProductId(null);
@@ -180,7 +190,7 @@ export function BusinessProfileSettings() {
       // If it was a new product with no name, remove it
       setProducts(products.filter((p: any) => p.id !== id));
     } else {
-      setProducts(products.map((p: any) => 
+      setProducts(products.map((p: any) =>
         p.id === id ? { ...p, isEditing: false } : p
       ));
     }
@@ -197,7 +207,7 @@ export function BusinessProfileSettings() {
   };
 
   const handleOwnerChange = (id: string, field: keyof Owner, value: string) => {
-    setOwners(owners.map((owner: any) => 
+    setOwners(owners.map((owner: any) =>
       owner.id === id ? { ...owner, [field]: value } : owner
     ));
   };
@@ -242,7 +252,6 @@ export function BusinessProfileSettings() {
           role: o.role || "",
         })));
       }
-      setUsesRegisteredAgent(businessProfile.usesRegisteredAgent || false);
       if (businessProfile.registeredAgent) {
         setRegisteredAgentName(businessProfile.registeredAgent.name || "");
         setRegisteredAgentCompany(businessProfile.registeredAgent.company || "");
@@ -270,12 +279,26 @@ export function BusinessProfileSettings() {
       setDbeStatus(businessProfile.dbeStatus || false);
       setHubzoneQualification(businessProfile.hubzoneQualification || false);
       setRuralUrban(businessProfile.ruralUrban || "");
-      setCert8a(businessProfile.cert8a || false);
-      setCertWosb(businessProfile.certWosb || false);
-      setCertMbe(businessProfile.certMbe || false);
-      setIsoCertifications(businessProfile.isoCertifications || "");
-      setGdprCompliant(businessProfile.gdprCompliant || false);
-      setCcpaCompliant(businessProfile.ccpaCompliant || false);
+      // Load certifications from new array structure, with fallback to legacy booleans
+      if (businessProfile.certifications && businessProfile.certifications.length > 0) {
+        // New structure: read from certifications array
+        const certs = businessProfile.certifications;
+        setCert8a(certs.some((c: any) => c.type === "8a") || false);
+        setCertWosb(certs.some((c: any) => c.type === "wosb") || false);
+        setCertMbe(certs.some((c: any) => c.type === "mbe") || false);
+        setGdprCompliant(certs.some((c: any) => c.type === "gdpr") || false);
+        setCcpaCompliant(certs.some((c: any) => c.type === "ccpa") || false);
+        const isoCert = certs.find((c: any) => c.type === "iso");
+        setIsoCertifications(isoCert?.notes || "");
+      } else {
+        // Legacy structure: read from boolean fields
+        setCert8a(businessProfile.cert8a || false);
+        setCertWosb(businessProfile.certWosb || false);
+        setCertMbe(businessProfile.certMbe || false);
+        setIsoCertifications(businessProfile.isoCertifications || "");
+        setGdprCompliant(businessProfile.gdprCompliant || false);
+        setCcpaCompliant(businessProfile.ccpaCompliant || false);
+      }
     }
   }, [businessProfile]);
 
@@ -315,8 +338,11 @@ export function BusinessProfileSettings() {
   };
 
   const handleSave = async () => {
+    if (!currentOrgId) return;
+
     try {
       await updateBusinessProfile({
+        orgId: currentOrgId,
         businessIcon: businessIcon || undefined,
         legalBusinessName: legalBusinessName || undefined,
         dbaTradeName: dbaTradeName || undefined,
@@ -351,8 +377,7 @@ export function BusinessProfileSettings() {
           linkedIn: o.linkedIn || undefined,
           role: o.role || undefined,
         })),
-        usesRegisteredAgent: usesRegisteredAgent || undefined,
-        registeredAgent: usesRegisteredAgent ? {
+        registeredAgent: (registeredAgentName || registeredAgentCompany || registeredAgentStreet || registeredAgentCity || registeredAgentState || registeredAgentZip || registeredAgentPhone || registeredAgentEmail) ? {
           name: registeredAgentName || undefined,
           company: registeredAgentCompany || undefined,
           street: registeredAgentStreet || undefined,
@@ -941,17 +966,29 @@ export function BusinessProfileSettings() {
 
             {/* Registered Agent - Conditional Reveal */}
             <div className="pt-4 border-t space-y-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="usesRegisteredAgent"
-                  checked={usesRegisteredAgent}
-                  onChange={(e) => setUsesRegisteredAgent(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <Label htmlFor="usesRegisteredAgent" className="text-base font-semibold cursor-pointer">
-                  My business uses a Registered Agent
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">
+                  Registered Agent (Optional)
                 </Label>
+                {usesRegisteredAgent && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setRegisteredAgentName("");
+                      setRegisteredAgentCompany("");
+                      setRegisteredAgentStreet("");
+                      setRegisteredAgentCity("");
+                      setRegisteredAgentState("");
+                      setRegisteredAgentZip("");
+                      setRegisteredAgentPhone("");
+                      setRegisteredAgentEmail("");
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
               </div>
 
               <Collapsible open={usesRegisteredAgent}>
@@ -1115,7 +1152,7 @@ export function BusinessProfileSettings() {
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 {products.length === 0 ? (
                   <div className="text-sm text-muted-foreground py-2">
                     No products/services added yet. Click the + icon to add one.

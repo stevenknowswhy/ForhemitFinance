@@ -5,36 +5,41 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, action } from "./_generated/server";
 import { api } from "./_generated/api";
+import { getOrgContext } from "./helpers/orgContext";
+import { requirePermission } from "./rbac";
+import { PERMISSIONS } from "./permissions";
 
 /**
  * Get pending transactions that need approval
+ * Phase 1: Updated to use org context
  */
 export const getPendingTransactions = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.email) {
-      throw new Error("Not authenticated or email not found");
-    }
+  args: {
+    filterType: v.optional(v.union(v.literal("business"), v.literal("personal"), v.literal("all"))),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
+  },
+  handler: async (ctx, args) => {
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
 
-    const email = identity.email;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .first();
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
 
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Get proposed entries waiting for approval
-    const proposedEntries = await ctx.db
+    // Get proposed entries waiting for approval (org-scoped)
+    let query = ctx.db
       .query("entries_proposed")
-      .withIndex("by_user_status", (q) =>
-        q.eq("userId", user._id).eq("status", "pending")
-      )
-      .order("desc")
-      .take(50);
+      .withIndex("by_org_status", (q) =>
+        q.eq("orgId", orgId).eq("status", "pending")
+      );
+
+    // Apply filter if specified
+    if (args.filterType === "business") {
+      query = query.filter((q) => q.eq(q.field("isBusiness"), true));
+    } else if (args.filterType === "personal") {
+      query = query.filter((q) => q.eq(q.field("isBusiness"), false));
+    }
+
+    const proposedEntries = await query.order("desc").take(50);
 
     // Enrich with transaction and account details
     const enriched = await Promise.all(
@@ -61,10 +66,12 @@ export const getPendingTransactions = query({
 
 /**
  * Approve a proposed entry
+ * Phase 1: Updated to use org context
  */
 export const approveEntry = mutation({
   args: {
     entryId: v.id("entries_proposed"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
     edits: v.optional(
       v.object({
         debitAccountId: v.optional(v.id("accounts")),
@@ -75,24 +82,20 @@ export const approveEntry = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.email) {
-      throw new Error("Not authenticated or email not found");
-    }
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
 
-    const email = identity.email;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.APPROVE_ENTRIES);
 
     const proposedEntry = await ctx.db.get(args.entryId);
-    if (!proposedEntry || proposedEntry.userId !== user._id) {
-      throw new Error("Entry not found or unauthorized");
+    if (!proposedEntry) {
+      throw new Error("Entry not found");
+    }
+
+    // Verify entry belongs to org
+    if (proposedEntry.orgId && proposedEntry.orgId !== orgId) {
+      throw new Error("Entry does not belong to this organization");
     }
 
     // Apply edits if provided
@@ -103,14 +106,15 @@ export const approveEntry = mutation({
 
     // Create final entry
     const entryId = await ctx.db.insert("entries_final", {
-      userId: user._id,
+      userId: userId, // Keep for backward compatibility
+      orgId: orgId, // Phase 1: Add orgId
       date: finalEntry.date,
       memo: finalEntry.memo,
       source: "plaid", // Could be derived from proposedEntry.source
       status: "posted",
       createdAt: Date.now(),
       approvedAt: Date.now(),
-      approvedBy: user._id,
+      approvedBy: userId,
     });
 
     // Create entry lines (debit and credit)
@@ -141,30 +145,28 @@ export const approveEntry = mutation({
 
 /**
  * Reject a proposed entry (user will need to manually categorize)
+ * Phase 1: Updated to use org context
  */
 export const rejectEntry = mutation({
   args: {
     entryId: v.id("entries_proposed"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.email) {
-      throw new Error("Not authenticated or email not found");
-    }
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
 
-    const email = identity.email;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.APPROVE_ENTRIES);
 
     const proposedEntry = await ctx.db.get(args.entryId);
-    if (!proposedEntry || proposedEntry.userId !== user._id) {
-      throw new Error("Entry not found or unauthorized");
+    if (!proposedEntry) {
+      throw new Error("Entry not found");
+    }
+
+    // Verify entry belongs to org
+    if (proposedEntry.orgId && proposedEntry.orgId !== orgId) {
+      throw new Error("Entry does not belong to this organization");
     }
 
     await ctx.db.patch(args.entryId, {
@@ -179,16 +181,34 @@ export const rejectEntry = mutation({
  * Process a new transaction and generate proposed entry using AI system
  * This is called when Plaid syncs new transactions or manual entries
  * Uses the full AI system with accounting engine + OpenRouter LLM
+ * Phase 1: Updated to use org context
  */
 export const processTransaction = mutation({
   args: {
     transactionId: v.id("transactions_raw"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
+
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.EDIT_TRANSACTIONS);
+
+    // Verify transaction belongs to org
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction) {
+      throw new Error("Transaction not found");
+    }
+    if (transaction.orgId && transaction.orgId !== orgId) {
+      throw new Error("Transaction does not belong to this organization");
+    }
+
     // Schedule the AI suggestion to run as an action
     // This allows us to use the full AI system (actions can call external APIs)
     await ctx.scheduler.runAfter(0, api.ai_entries.suggestDoubleEntry, {
       transactionId: args.transactionId,
+      orgId: orgId, // Phase 1: Pass orgId
     });
 
     // Return immediately - the AI system will create the proposed entry asynchronously
@@ -198,17 +218,24 @@ export const processTransaction = mutation({
 
 /**
  * Create a raw transaction (from Plaid sync or manual entry)
+ * Phase 1: Updated to use org context
  */
 export const createRaw = mutation({
   args: {
     accountId: v.id("accounts"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
     plaidTransactionId: v.optional(v.string()),
     amount: v.number(),
     date: v.string(),
     merchant: v.optional(v.string()),
     description: v.string(),
     category: v.optional(v.array(v.string())),
-    isPending: v.boolean(),
+    status: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("posted"),
+      v.literal("cleared"),
+      v.literal("reconciled")
+    )),
     isBusiness: v.optional(v.boolean()),
     entryMode: v.optional(v.union(
       v.literal("simple"),
@@ -227,32 +254,33 @@ export const createRaw = mutation({
     }))),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.email) {
-      throw new Error("Not authenticated or email not found");
-    }
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
 
-    const email = identity.email;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.EDIT_TRANSACTIONS);
 
     const account = await ctx.db.get(args.accountId);
-    if (!account || account.userId !== user._id) {
-      throw new Error("Account not found or unauthorized");
+    if (!account) {
+      throw new Error("Account not found");
+    }
+
+    // Verify account belongs to org
+    if (account.orgId && account.orgId !== orgId) {
+      throw new Error("Account does not belong to this organization");
     }
 
     // Parse date string (YYYY-MM-DD) to create timestamp at UTC midnight
     // This provides consistent sorting/filtering while preserving the date string
     const dateTimestamp = new Date(args.date + "T00:00:00Z").getTime();
 
+    // Default status to "pending" if not provided, or use provided status
+    const status = args.status || "pending";
+    const now = Date.now();
+
     const transactionData: any = {
-      userId: user._id,
+      userId: userId, // Keep for backward compatibility
+      orgId: orgId, // Phase 1: Add orgId
       accountId: args.accountId,
       plaidTransactionId: args.plaidTransactionId,
       amount: args.amount,
@@ -262,10 +290,15 @@ export const createRaw = mutation({
       merchant: args.merchant,
       description: args.description,
       category: args.category,
-      isPending: args.isPending,
+      status: status,
       source: args.plaidTransactionId ? "plaid" : "manual",
-      createdAt: Date.now(),
+      createdAt: now,
     };
+
+    // Set postedAt timestamp if status is posted or beyond
+    if (status === "posted" || status === "cleared" || status === "reconciled") {
+      transactionData.postedAt = now;
+    }
 
     // Only include isBusiness if it's explicitly set (not undefined)
     if (args.isBusiness !== undefined) {
@@ -291,6 +324,12 @@ export const createRaw = mutation({
     }
 
     const transactionId = await ctx.db.insert("transactions_raw", transactionData);
+
+    // Automatically process transaction to generate AI suggestion
+    await ctx.scheduler.runAfter(0, api.transactions.processTransaction, {
+      transactionId,
+      orgId: orgId, // Phase 1: Pass orgId
+    });
 
     return transactionId;
   },
@@ -348,7 +387,7 @@ export const createReceipt = mutation({
       const transaction = await ctx.db.get(args.transactionId);
       if (transaction && transaction.userId === args.userId) {
         const existingReceiptIds = transaction.receiptIds ?? [];
-        
+
         // Update transaction with receiptIds array and legacy receiptUrl
         await ctx.db.patch(args.transactionId, {
           receiptIds: [...existingReceiptIds, receiptId],
@@ -433,13 +472,31 @@ export const getUserReceipts = query({
 
 /**
  * Get transaction by ID
+ * Phase 1: Updated to use org context
  */
 export const getById = query({
   args: {
     transactionId: v.id("transactions_raw"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.transactionId);
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
+
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
+
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction) {
+      return null;
+    }
+
+    // Verify transaction belongs to org
+    if (transaction.orgId && transaction.orgId !== orgId) {
+      throw new Error("Transaction does not belong to this organization");
+    }
+
+    return transaction;
   },
 });
 
@@ -460,17 +517,24 @@ export const getByPlaidId = query({
 
 /**
  * Update a transaction
+ * Phase 1: Updated to use org context
  */
 export const updateTransaction = mutation({
   args: {
     transactionId: v.id("transactions_raw"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
     amount: v.optional(v.number()),
     date: v.optional(v.string()),
     merchant: v.optional(v.string()),
     description: v.optional(v.string()),
     category: v.optional(v.array(v.string())),
     isBusiness: v.optional(v.boolean()),
-    isPending: v.optional(v.boolean()),
+    status: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("posted"),
+      v.literal("cleared"),
+      v.literal("reconciled")
+    )),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -491,6 +555,12 @@ export const updateTransaction = mutation({
     const transaction = await ctx.db.get(args.transactionId);
     if (!transaction || transaction.userId !== user._id) {
       throw new Error("Transaction not found or unauthorized");
+    }
+
+    // Get orgId from transaction (Phase 1: Multi-tenant)
+    const orgId = transaction.orgId;
+    if (!orgId) {
+      throw new Error("Transaction does not have an organization context");
     }
 
     // Build update object with only provided fields
@@ -505,7 +575,23 @@ export const updateTransaction = mutation({
     if (args.description !== undefined) updateData.description = args.description;
     if (args.category !== undefined) updateData.category = args.category;
     if (args.isBusiness !== undefined) updateData.isBusiness = args.isBusiness;
-    if (args.isPending !== undefined) updateData.isPending = args.isPending;
+    if (args.status !== undefined) {
+      updateData.status = args.status;
+      const now = Date.now();
+      // Update timestamps based on status transitions
+      if (args.status === "posted" && !transaction.postedAt) {
+        updateData.postedAt = now;
+      }
+      if (args.status === "cleared" && !transaction.clearedAt) {
+        updateData.clearedAt = now;
+        if (!transaction.postedAt) updateData.postedAt = now;
+      }
+      if (args.status === "reconciled" && !transaction.reconciledAt) {
+        updateData.reconciledAt = now;
+        if (!transaction.postedAt) updateData.postedAt = now;
+        if (!transaction.clearedAt) updateData.clearedAt = now;
+      }
+    }
 
     await ctx.db.patch(args.transactionId, updateData);
 
@@ -514,6 +600,7 @@ export const updateTransaction = mutation({
       // Schedule AI suggestion regeneration
       await ctx.scheduler.runAfter(0, api.ai_entries.suggestDoubleEntry, {
         transactionId: args.transactionId,
+        orgId: orgId, // Phase 1: Pass orgId
       });
     }
 
@@ -523,30 +610,28 @@ export const updateTransaction = mutation({
 
 /**
  * Delete a transaction
+ * Phase 1: Updated to use org context
  */
 export const deleteTransaction = mutation({
   args: {
     transactionId: v.id("transactions_raw"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.email) {
-      throw new Error("Not authenticated or email not found");
-    }
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
 
-    const email = identity.email;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.EDIT_TRANSACTIONS);
 
     const transaction = await ctx.db.get(args.transactionId);
-    if (!transaction || transaction.userId !== user._id) {
-      throw new Error("Transaction not found or unauthorized");
+    if (!transaction) {
+      throw new Error("Transaction not found");
+    }
+
+    // Verify transaction belongs to org
+    if (transaction.orgId && transaction.orgId !== orgId) {
+      throw new Error("Transaction does not belong to this organization");
     }
 
     // Delete any associated proposed entries
@@ -696,7 +781,6 @@ export const removePlaidTransactions = mutation({
       if (transaction && transaction.userId === user._id) {
         // Mark as removed (don't delete, keep for audit trail)
         await ctx.db.patch(transaction._id, {
-          isRemoved: true,
           removedAt: Date.now(),
         });
 
@@ -753,7 +837,6 @@ export const removePlaidTransactionsInternal = internalMutation({
       if (transaction && transaction.userId === userId) {
         // Mark as removed (don't delete, keep for audit trail)
         await ctx.db.patch(transaction._id, {
-          isRemoved: true,
           removedAt: Date.now(),
         });
 
@@ -790,8 +873,7 @@ export const removePlaidTransactionsByItemId = action({
   },
   handler: async (ctx, args) => {
     // Call the internal mutation which handles authentication via itemId lookup
-    await ctx.runMutation(api.transactions.removePlaidTransactionsInternal, {
-      itemId: args.itemId,
+    await ctx.runMutation(api.transactions.removePlaidTransactions, {
       plaidTransactionIds: args.plaidTransactionIds,
     });
 

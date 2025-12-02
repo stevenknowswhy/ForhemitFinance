@@ -11,6 +11,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DesktopNavigation } from "../components/DesktopNavigation";
 import { BottomNavigation } from "../components/BottomNavigation";
+import { SettingsSidebar } from "./components/SettingsSidebar";
 import {
   Accordion,
   AccordionContent,
@@ -24,6 +25,7 @@ import { BillingSettings } from "./sections/BillingSettings";
 import { ThemeSettings } from "./sections/ThemeSettings";
 import { SecuritySettings } from "./sections/SecuritySettings";
 import { DataSyncSettings } from "./sections/DataSyncSettings";
+import { DataResetSettings } from "./sections/DataResetSettings";
 import { AIPersonalizationSettings } from "./sections/AIPersonalizationSettings";
 import { AccountingPreferencesSettings } from "./sections/AccountingPreferencesSettings";
 import { NotificationPreferencesSettings } from "./sections/NotificationPreferencesSettings";
@@ -80,7 +82,7 @@ export default function SettingsPage() {
   const isBusinessPlan = subscriptionTier === "light" || subscriptionTier === "pro";
 
   return (
-    <div className="min-h-screen bg-background pb-20 lg:pb-8">
+    <div className="min-h-screen bg-background pb-20 lg:pb-8 flex flex-col">
       {/* Mobile Header */}
       <div className="lg:hidden sticky top-0 z-40 bg-background border-b border-border">
         <div className="p-4">
@@ -91,19 +93,30 @@ export default function SettingsPage() {
       {/* Desktop Navigation */}
       <DesktopNavigation />
 
-      <div className="max-w-5xl mx-auto p-4 md:p-8">
-        <div className="mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-            Settings
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your account, preferences, and integrations
-          </p>
-        </div>
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+        {/* Sidebar - Desktop only */}
+        <SettingsSidebar isBusinessPlan={isBusinessPlan} />
 
-        <Accordion type="multiple" className="w-full space-y-4">
-          {/* Category 1: Account */}
-          <AccordionItem value="account" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-5xl mx-auto p-4 md:p-8">
+            <div className="mb-8">
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+                Settings
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Manage your account, preferences, and integrations
+              </p>
+            </div>
+
+            <Accordion type="multiple" className="w-full space-y-4">
+              {/* Category 1: Account */}
+              <AccordionItem 
+                id="account"
+                value="account" 
+                data-accordion-trigger
+                className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+              >
             <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                 <CardHeader className="flex-1 p-0">
@@ -119,7 +132,12 @@ export default function SettingsPage() {
               <AccordionContent>
                 <CardContent className="px-6 pb-6 pt-0">
                   <Accordion type="multiple" className="w-full space-y-2">
-                    <AccordionItem value="profile" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="profile"
+                      value="profile" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         Profile
                       </AccordionTrigger>
@@ -128,7 +146,12 @@ export default function SettingsPage() {
                       </AccordionContent>
                     </AccordionItem>
 
-                    <AccordionItem value="addresses" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="addresses"
+                      value="addresses" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         Addresses
                       </AccordionTrigger>
@@ -143,7 +166,12 @@ export default function SettingsPage() {
           </AccordionItem>
 
           {/* Category 1.5: Business Profile (Available to All Users) */}
-          <AccordionItem value="business-profile" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+          <AccordionItem 
+            id="business-profile"
+            value="business-profile" 
+            data-accordion-trigger
+            className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+          >
             <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                 <CardHeader className="flex-1 p-0">
@@ -165,7 +193,12 @@ export default function SettingsPage() {
           </AccordionItem>
 
           {/* Category 2: Security & Privacy */}
-          <AccordionItem value="security-privacy" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+          <AccordionItem 
+            id="security-privacy"
+            value="security-privacy" 
+            data-accordion-trigger
+            className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+          >
             <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                 <CardHeader className="flex-1 p-0">
@@ -181,7 +214,12 @@ export default function SettingsPage() {
               <AccordionContent>
                 <CardContent className="px-6 pb-6 pt-0">
                   <Accordion type="multiple" className="w-full space-y-2">
-                    <AccordionItem value="security" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="security"
+                      value="security" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         Security & Login
                       </AccordionTrigger>
@@ -190,7 +228,12 @@ export default function SettingsPage() {
                       </AccordionContent>
                     </AccordionItem>
 
-                    <AccordionItem value="privacy" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="privacy"
+                      value="privacy" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         Privacy Controls
                       </AccordionTrigger>
@@ -205,7 +248,12 @@ export default function SettingsPage() {
           </AccordionItem>
 
           {/* Category 3: Billing */}
-          <AccordionItem value="billing" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+          <AccordionItem 
+            id="billing"
+            value="billing" 
+            data-accordion-trigger
+            className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+          >
             <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                 <CardHeader className="flex-1 p-0">
@@ -227,7 +275,12 @@ export default function SettingsPage() {
           </AccordionItem>
 
           {/* Category 4: Appearance */}
-          <AccordionItem value="appearance" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+          <AccordionItem 
+            id="appearance"
+            value="appearance" 
+            data-accordion-trigger
+            className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+          >
             <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                 <CardHeader className="flex-1 p-0">
@@ -243,7 +296,12 @@ export default function SettingsPage() {
               <AccordionContent>
                 <CardContent className="px-6 pb-6 pt-0">
                   <Accordion type="multiple" className="w-full space-y-2">
-                    <AccordionItem value="theme" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="theme"
+                      value="theme" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         Theme
                       </AccordionTrigger>
@@ -252,7 +310,12 @@ export default function SettingsPage() {
                       </AccordionContent>
                     </AccordionItem>
 
-                    <AccordionItem value="display" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="display"
+                      value="display" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         Display & Behavior
                       </AccordionTrigger>
@@ -267,7 +330,12 @@ export default function SettingsPage() {
           </AccordionItem>
 
           {/* Category 5: Notifications */}
-          <AccordionItem value="notifications" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+          <AccordionItem 
+            id="notifications"
+            value="notifications" 
+            data-accordion-trigger
+            className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+          >
             <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                 <CardHeader className="flex-1 p-0">
@@ -290,7 +358,12 @@ export default function SettingsPage() {
 
           {/* Category 8: Business (Business Plan Only) */}
           {isBusinessPlan && (
-            <AccordionItem value="business" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+            <AccordionItem 
+              id="business"
+              value="business" 
+              data-accordion-trigger
+              className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+            >
               <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
                 <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                   <CardHeader className="flex-1 p-0">
@@ -306,7 +379,12 @@ export default function SettingsPage() {
                 <AccordionContent>
                   <CardContent className="px-6 pb-6 pt-0">
                     <Accordion type="multiple" className="w-full space-y-2">
-                      <AccordionItem value="business-profile" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                      <AccordionItem 
+                        id="business-profile-sub"
+                        value="business-profile" 
+                        data-accordion-trigger
+                        className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                      >
                         <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                           <div className="flex items-center gap-2">
                             <FileText className="w-4 h-4" />
@@ -318,7 +396,12 @@ export default function SettingsPage() {
                         </AccordionContent>
                       </AccordionItem>
 
-                      <AccordionItem value="accounting" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                      <AccordionItem 
+                        id="accounting"
+                        value="accounting" 
+                        data-accordion-trigger
+                        className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                      >
                         <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                           Accounting Preferences
                         </AccordionTrigger>
@@ -327,7 +410,12 @@ export default function SettingsPage() {
                         </AccordionContent>
                       </AccordionItem>
 
-                      <AccordionItem value="team" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                      <AccordionItem 
+                        id="team"
+                        value="team" 
+                        data-accordion-trigger
+                        className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                      >
                         <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                           Team & Collaboration
                         </AccordionTrigger>
@@ -344,7 +432,12 @@ export default function SettingsPage() {
 
           {/* Category 9: Accounting (Personal Plan) */}
           {!isBusinessPlan && (
-            <AccordionItem value="accounting" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+            <AccordionItem 
+              id="accounting"
+              value="accounting" 
+              data-accordion-trigger
+              className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+            >
               <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
                 <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                   <CardHeader className="flex-1 p-0">
@@ -367,7 +460,12 @@ export default function SettingsPage() {
           )}
 
           {/* Category 10: Integrations */}
-          <AccordionItem value="integrations" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+          <AccordionItem 
+            id="integrations"
+            value="integrations" 
+            data-accordion-trigger
+            className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+          >
             <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                 <CardHeader className="flex-1 p-0">
@@ -389,7 +487,12 @@ export default function SettingsPage() {
           </AccordionItem>
 
           {/* Category 11: Advanced */}
-          <AccordionItem value="advanced" className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md">
+          <AccordionItem 
+            id="advanced"
+            value="advanced" 
+            data-accordion-trigger
+            className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+          >
             <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
               <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
                 <CardHeader className="flex-1 p-0">
@@ -405,7 +508,12 @@ export default function SettingsPage() {
               <AccordionContent>
                 <CardContent className="px-6 pb-6 pt-0">
                   <Accordion type="multiple" className="w-full space-y-2">
-                    <AccordionItem value="data-management" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="data-management"
+                      value="data-management" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         <div className="flex items-center gap-2">
                           <Database className="w-4 h-4" />
@@ -414,7 +522,12 @@ export default function SettingsPage() {
                       </AccordionTrigger>
                       <AccordionContent className="pt-0 pb-4">
                         <Accordion type="multiple" className="w-full space-y-2">
-                          <AccordionItem value="data-sync" className="border-none">
+                          <AccordionItem 
+                            id="data-sync"
+                            value="data-sync" 
+                            data-accordion-trigger
+                            className="border-none"
+                          >
                             <AccordionTrigger className="py-2 hover:no-underline text-sm">
                               Data Sync & Bank Connections
                             </AccordionTrigger>
@@ -423,7 +536,12 @@ export default function SettingsPage() {
                             </AccordionContent>
                           </AccordionItem>
 
-                          <AccordionItem value="data-export" className="border-none border-t">
+                          <AccordionItem 
+                            id="data-export"
+                            value="data-export" 
+                            data-accordion-trigger
+                            className="border-none border-t"
+                          >
                             <AccordionTrigger className="py-2 hover:no-underline text-sm">
                               Data Export & Ownership
                             </AccordionTrigger>
@@ -431,11 +549,30 @@ export default function SettingsPage() {
                               <DataExportSettings />
                             </AccordionContent>
                           </AccordionItem>
+
+                          <AccordionItem 
+                            id="data-reset"
+                            value="data-reset" 
+                            data-accordion-trigger
+                            className="border-none border-t"
+                          >
+                            <AccordionTrigger className="py-2 hover:no-underline text-sm">
+                              Data & Reset
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-0">
+                              <DataResetSettings />
+                            </AccordionContent>
+                          </AccordionItem>
                         </Accordion>
                       </AccordionContent>
                     </AccordionItem>
 
-                    <AccordionItem value="ai-automation" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="ai-automation"
+                      value="ai-automation" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         <div className="flex items-center gap-2">
                           <Sparkles className="w-4 h-4" />
@@ -447,7 +584,12 @@ export default function SettingsPage() {
                       </AccordionContent>
                     </AccordionItem>
 
-                    <AccordionItem value="professional-network" className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30">
+                    <AccordionItem 
+                      id="professional-network"
+                      value="professional-network" 
+                      data-accordion-trigger
+                      className="border border-gray-200 dark:border-gray-700 rounded-md px-4 transition-all duration-200 hover:border-primary/50 hover:bg-muted/30"
+                    >
                       <AccordionTrigger className="py-3 hover:no-underline hover:text-primary transition-colors">
                         <div className="flex items-center gap-2">
                           <Network className="w-4 h-4" />
@@ -462,8 +604,10 @@ export default function SettingsPage() {
                 </CardContent>
               </AccordionContent>
             </Card>
-          </AccordionItem>
+            </AccordionItem>
         </Accordion>
+          </div>
+        </main>
       </div>
       
       {/* Bottom Navigation (Mobile only) */}

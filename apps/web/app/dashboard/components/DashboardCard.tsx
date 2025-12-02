@@ -6,13 +6,17 @@
  */
 
 import { useState } from "react";
-import { Info } from "lucide-react";
+import { Info, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DashboardCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
+  trend?: string;
+  trendUp?: boolean;
+  icon?: LucideIcon;
+  loading?: boolean;
   tooltip?: string;
   className?: string;
   valueClassName?: string;
@@ -23,6 +27,10 @@ export function DashboardCard({
   title,
   value,
   subtitle,
+  trend,
+  trendUp,
+  icon: Icon,
+  loading,
   tooltip,
   className,
   valueClassName,
@@ -40,7 +48,10 @@ export function DashboardCard({
       onClick={onClick}
     >
       <div className="flex items-start justify-between mb-2">
-        <div className="text-sm text-muted-foreground">{title}</div>
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="w-4 h-4 text-muted-foreground" />}
+          <div className="text-sm text-muted-foreground">{title}</div>
+        </div>
         {tooltip && (
           <div className="relative">
             <button
@@ -64,10 +75,27 @@ export function DashboardCard({
         )}
       </div>
       <div className={cn("text-2xl font-bold", valueClassName)}>
-        {typeof value === "number" ? value.toLocaleString() : value}
+        {loading ? (
+          <span className="text-muted-foreground">...</span>
+        ) : typeof value === "number" ? (
+          value.toLocaleString()
+        ) : (
+          value
+        )}
       </div>
-      {subtitle && (
-        <div className="text-xs text-muted-foreground mt-1">{subtitle}</div>
+      {(subtitle || trend) && (
+        <div
+          className={cn(
+            "text-xs mt-1",
+            trendUp !== undefined
+              ? trendUp
+                ? "text-green-600 dark:text-green-400"
+                : "text-red-600 dark:text-red-400"
+              : "text-muted-foreground"
+          )}
+        >
+          {trend || subtitle}
+        </div>
       )}
     </div>
   );

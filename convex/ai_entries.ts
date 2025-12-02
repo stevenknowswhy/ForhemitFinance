@@ -6,6 +6,9 @@
 import { v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
 import { api } from "./_generated/api";
+import { getOrgContext } from "./helpers/orgContext";
+import { requirePermission } from "./rbac";
+import { PERMISSIONS } from "./permissions";
 
 // Types for accounting engine (inlined since workspace packages may not be available in Convex)
 interface Account {
@@ -748,11 +751,18 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
     userDescription: v.optional(v.string()), // User-provided description for context/corrections
   },
   handler: async (ctx, args) => {
+    // Get org context for this action
+    const orgContext = await ctx.runQuery(api.helpers.index.getOrgContextQuery, {});
+    if (!orgContext.orgId) {
+      throw new Error("No organization context available");
+    }
+    const orgId = orgContext.orgId;
+    
     // Fetch business context
-    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext);
+    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext, { orgId });
     
     // Get user's accounts
-    const accounts = await ctx.runQuery(api.accounts.getAll);
+    const accounts = await ctx.runQuery(api.accounts.getAll, { orgId });
     
     // Convert Convex accounts to accounting engine format
     const engineAccounts: Account[] = accounts.map((acc: any) => ({
@@ -929,25 +939,45 @@ export const generateAISuggestions: ReturnType<typeof action> = action({
 
 /**
  * Suggest a double-entry for a transaction with AI explanation
+ * Phase 1: Updated to use org context
  */
 export const suggestDoubleEntry: ReturnType<typeof action> = action({
   args: {
     transactionId: v.id("transactions_raw"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
+    // Get org context
+    const orgContext = await ctx.runQuery(api.helpers.index.getOrgContextQuery, {
+      orgId: args.orgId,
+    });
+    if (!orgContext) {
+      throw new Error("Organization context required");
+    }
+
     const transaction = await ctx.runQuery(api.transactions.getById, {
       transactionId: args.transactionId,
+      orgId: orgContext.orgId, // Phase 1: Pass orgId
     });
 
     if (!transaction) {
       throw new Error("Transaction not found");
     }
 
-    // Fetch business context
-    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext);
+    // Verify transaction belongs to org
+    if (transaction.orgId && transaction.orgId !== orgContext.orgId) {
+      throw new Error("Transaction does not belong to this organization");
+    }
 
-    // Get user's accounts
-    const accounts = await ctx.runQuery(api.accounts.getAll);
+    // Fetch business context
+    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext, {
+      orgId: orgContext.orgId, // Phase 1: Pass orgId
+    });
+    
+    // Get user's accounts - org-scoped
+    const accounts = await ctx.runQuery(api.accounts.getAll, {
+      orgId: orgContext.orgId, // Phase 1: Pass orgId
+    });
     
     // Convert Convex accounts to accounting engine format
     const engineAccounts: Account[] = accounts.map((acc: any) => ({
@@ -1222,10 +1252,12 @@ Keep it under 3 sentences.`;
 
 /**
  * Create a proposed entry from a suggestion
+ * Phase 1: Updated to use org context
  */
 export const createProposedEntry = mutation({
   args: {
     transactionId: v.id("transactions_raw"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
     suggestion: v.object({
       debitAccountId: v.string(),
       creditAccountId: v.string(),
@@ -1236,20 +1268,31 @@ export const createProposedEntry = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
+
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.EDIT_TRANSACTIONS);
+
     const transaction = await ctx.db.get(args.transactionId);
     if (!transaction) {
       throw new Error("Transaction not found");
+    }
+
+    // Verify transaction belongs to org
+    if (transaction.orgId && transaction.orgId !== orgId) {
+      throw new Error("Transaction does not belong to this organization");
     }
 
     // Convert string IDs to Convex IDs
     const debitAccountId = args.suggestion.debitAccountId as any;
     const creditAccountId = args.suggestion.creditAccountId as any;
 
-    // Check if entry already exists for this transaction
+    // Check if entry already exists for this transaction - org-scoped
     const existing = await ctx.db
       .query("entries_proposed")
-      .withIndex("by_user_status", (q) =>
-        q.eq("userId", transaction.userId).eq("status", "pending")
+      .withIndex("by_org_status", (q) =>
+        q.eq("orgId", orgId).eq("status", "pending")
       )
       .filter((q: any) => q.eq(q.field("transactionId"), args.transactionId))
       .first();
@@ -1270,7 +1313,8 @@ export const createProposedEntry = mutation({
 
     // Create new proposed entry
     const proposedEntryId = await ctx.db.insert("entries_proposed", {
-      userId: transaction.userId,
+      userId: userId, // Keep for backward compatibility
+      orgId: orgId, // Phase 1: Add orgId
       transactionId: args.transactionId,
       date: new Date(transaction.date).getTime(),
       memo: args.suggestion.memo,
@@ -1292,57 +1336,86 @@ export const createProposedEntry = mutation({
 
 /**
  * Get comprehensive business context for AI decision-making
+ * Phase 1: Updated to use org context
  */
 export const getBusinessContext = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+  args: {
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
+  },
+  handler: async (ctx, args) => {
+    // Get org context (includes auth check)
+    const { userId, orgId } = await getOrgContext(ctx, args.orgId);
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
-      .first();
+    // Check permission
+    await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
 
-    if (!user) return null;
+    // Get user for preferences
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
 
+    // Get business profile - org-scoped
     const businessProfile = await ctx.db
       .query("business_profiles")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
 
+    // Type assertion for user (TypeScript sometimes infers wrong union type)
+    const userData = user as any;
+    
     return {
-      businessType: user.businessType, // creator, tradesperson, wellness, etc.
-      businessEntityType: user.preferences?.businessEntityType, // llc, s_corp, etc.
+      businessType: userData.businessType || undefined, // creator, tradesperson, wellness, etc. (optional field)
+      businessEntityType: userData.preferences?.businessEntityType, // llc, s_corp, etc.
       businessCategory: businessProfile?.businessCategory,
       naicsCode: businessProfile?.naicsCode,
       entityType: businessProfile?.entityType,
       businessDescription: businessProfile?.businessDescription,
-      accountingMethod: user.preferences?.accountingMethod || "cash", // cash or accrual
+      accountingMethod: userData.preferences?.accountingMethod || "cash", // cash or accrual
     };
   },
 });
 
 /**
  * Get alternative suggestions for a transaction (when confidence is low)
+ * Phase 1: Updated to use org context
  */
 export const getAlternativeSuggestions = action({
   args: {
     transactionId: v.id("transactions_raw"),
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
   handler: async (ctx, args) => {
+    // Get org context
+    const orgContext = await ctx.runQuery(api.helpers.index.getOrgContextQuery, {
+      orgId: args.orgId,
+    });
+    if (!orgContext) {
+      throw new Error("Organization context required");
+    }
     const transaction = await ctx.runQuery(api.transactions.getById, {
       transactionId: args.transactionId,
+      orgId: orgContext.orgId, // Phase 1: Pass orgId
     });
 
     if (!transaction) {
       throw new Error("Transaction not found");
     }
 
-    // Fetch business context
-    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext);
+    // Verify transaction belongs to org
+    if (transaction.orgId && transaction.orgId !== orgContext.orgId) {
+      throw new Error("Transaction does not belong to this organization");
+    }
 
-    const accounts = await ctx.runQuery(api.accounts.getAll);
+    // Fetch business context
+    const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext, {
+      orgId: orgContext.orgId, // Phase 1: Pass orgId
+    });
+
+    // Get user's accounts - org-scoped
+    const accounts = await ctx.runQuery(api.accounts.getAll, {
+      orgId: orgContext.orgId, // Phase 1: Pass orgId
+    });
     const engineAccounts: Account[] = accounts.map((acc: any) => ({
       id: acc._id,
       name: acc.name,

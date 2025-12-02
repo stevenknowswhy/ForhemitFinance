@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { useOrg } from "../../contexts/OrgContext";
 import { useToast } from "@/components/ui/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,25 +11,29 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Users, UserPlus, Trash2, Shield } from "lucide-react";
-
-type TeamRole = "view_only" | "categorize_only" | "edit_transactions" | "admin";
-
-interface TeamMember {
-  id: string;
-  email: string;
-  role: TeamRole;
-  invitedAt: string;
-}
+import { Users, UserPlus, Trash2, Shield, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export function TeamSettings() {
   const { toast } = useToast();
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const { currentOrgId, userRole } = useOrg();
+
+  const members = useQuery(api.memberships.listMembers,
+    currentOrgId ? { orgId: currentOrgId } : "skip"
+  );
+
+  const inviteMember = useMutation(api.memberships.inviteMember);
+  const updateMemberRole = useMutation(api.memberships.updateMemberRole);
+  const removeMember = useMutation(api.memberships.removeMember);
+
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<TeamRole>("view_only");
+  const [inviteRole, setInviteRole] = useState<"ORG_ADMIN" | "BOOKKEEPER" | "VIEWER">("VIEWER");
+  const [isInviting, setIsInviting] = useState(false);
 
-  const handleInvite = () => {
+  const handleInvite = async () => {
+    if (!currentOrgId) return;
+
     if (!inviteEmail || !inviteEmail.includes("@")) {
       toast({
         title: "Validation error",
@@ -36,53 +43,82 @@ export function TeamSettings() {
       return;
     }
 
-    const newMember: TeamMember = {
-      id: Date.now().toString(),
-      email: inviteEmail,
-      role: inviteRole,
-      invitedAt: new Date().toISOString(),
-    };
+    setIsInviting(true);
+    try {
+      await inviteMember({
+        orgId: currentOrgId,
+        email: inviteEmail,
+        role: inviteRole,
+      });
 
-    setMembers([...members, newMember]);
-    toast({
-      title: "Invitation sent",
-      description: `An invitation has been sent to ${inviteEmail}.`,
-    });
+      toast({
+        title: "Invitation sent",
+        description: `An invitation has been sent to ${inviteEmail}.`,
+      });
 
-    setInviteEmail("");
-    setIsInviteDialogOpen(false);
-  };
-
-  const handleRemoveMember = (id: string) => {
-    setMembers(members.filter((m: any) => m.id !== id));
-    toast({
-      title: "Member removed",
-      description: "The team member has been removed.",
-    });
-  };
-
-  const handleChangeRole = (id: string, newRole: TeamRole) => {
-    setMembers(
-      members.map((m: any) => (m.id === id ? { ...m, role: newRole } : m))
-    );
-    toast({
-      title: "Role updated",
-      description: "The team member's role has been updated.",
-    });
-  };
-
-  const getRoleLabel = (role: TeamRole) => {
-    switch (role) {
-      case "view_only":
-        return "View Only";
-      case "categorize_only":
-        return "Categorize Only";
-      case "edit_transactions":
-        return "Edit Transactions";
-      case "admin":
-        return "Admin";
+      setInviteEmail("");
+      setIsInviteDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send invitation.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsInviting(false);
     }
   };
+
+  const handleRemoveMember = async (membershipId: any) => {
+    if (!confirm("Are you sure you want to remove this member?")) return;
+
+    try {
+      await removeMember({ membershipId });
+      toast({
+        title: "Member removed",
+        description: "The team member has been removed.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to remove member.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleChangeRole = async (membershipId: any, newRole: any) => {
+    try {
+      await updateMemberRole({
+        membershipId,
+        newRole,
+      });
+      toast({
+        title: "Role updated",
+        description: "The team member's role has been updated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to update role.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case "ORG_OWNER": return "Owner";
+      case "ORG_ADMIN": return "Admin";
+      case "BOOKKEEPER": return "Bookkeeper";
+      case "VIEWER": return "Viewer";
+      default: return role;
+    }
+  };
+
+  if (!currentOrgId) return null;
+
+  const canManageTeam = userRole === "ORG_OWNER" || userRole === "ORG_ADMIN";
 
   return (
     <div className="space-y-4 py-4">
@@ -96,93 +132,109 @@ export function TeamSettings() {
               </CardTitle>
               <CardDescription>Manage your team members and their permissions</CardDescription>
             </div>
-            <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Invite Member
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Invite Team Member</DialogTitle>
-                  <DialogDescription>
-                    Send an invitation to collaborate on your financial data
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="inviteEmail">Email Address</Label>
-                    <Input
-                      id="inviteEmail"
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="colleague@example.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="inviteRole">Role</Label>
-                    <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as TeamRole)}>
-                      <SelectTrigger id="inviteRole">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="view_only">View Only</SelectItem>
-                        <SelectItem value="categorize_only">Categorize Only</SelectItem>
-                        <SelectItem value="edit_transactions">Edit Transactions</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={handleInvite} className="w-full">
-                    Send Invitation
+            {canManageTeam && (
+              <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Invite Member
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Invite Team Member</DialogTitle>
+                    <DialogDescription>
+                      Send an invitation to collaborate on your financial data
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="inviteEmail">Email Address</Label>
+                      <Input
+                        id="inviteEmail"
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        placeholder="colleague@example.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="inviteRole">Role</Label>
+                      <Select value={inviteRole} onValueChange={(value: any) => setInviteRole(value)}>
+                        <SelectTrigger id="inviteRole">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ORG_ADMIN">Admin</SelectItem>
+                          <SelectItem value="BOOKKEEPER">Bookkeeper</SelectItem>
+                          <SelectItem value="VIEWER">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={handleInvite} className="w-full" disabled={isInviting}>
+                      {isInviting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Invitation"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </CardHeader>
         <CardContent>
-          {members.length === 0 ? (
+          {!members ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : members.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No team members yet. Invite someone to get started.
+              No team members found.
             </p>
           ) : (
             <div className="space-y-3">
-              {members.map((member: any) => (
+              {members.map((member) => (
                 <div
-                  key={member.id}
+                  key={member._id}
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div className="flex-1">
-                    <p className="font-medium">{member.email}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{member.name || member.email}</p>
+                      {member.status === "invited" && (
+                        <Badge variant="secondary" className="text-xs">Invited</Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">
-                      Invited: {new Date(member.invitedAt).toLocaleDateString()}
+                      {member.email}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Select
-                      value={member.role}
-                      onValueChange={(value) => handleChangeRole(member.id, value as TeamRole)}
-                    >
-                      <SelectTrigger className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="view_only">View Only</SelectItem>
-                        <SelectItem value="categorize_only">Categorize Only</SelectItem>
-                        <SelectItem value="edit_transactions">Edit Transactions</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveMember(member.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {canManageTeam && member.role !== "ORG_OWNER" ? (
+                      <Select
+                        value={member.role}
+                        onValueChange={(value) => handleChangeRole(member._id, value)}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ORG_ADMIN">Admin</SelectItem>
+                          <SelectItem value="BOOKKEEPER">Bookkeeper</SelectItem>
+                          <SelectItem value="VIEWER">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline">{getRoleLabel(member.role)}</Badge>
+                    )}
+
+                    {canManageTeam && member.role !== "ORG_OWNER" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveMember(member._id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -208,4 +260,5 @@ export function TeamSettings() {
     </div>
   );
 }
+
 
