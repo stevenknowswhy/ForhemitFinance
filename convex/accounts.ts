@@ -8,6 +8,7 @@ import { query } from "./_generated/server";
 import { getOrgContext } from "./helpers/orgContext";
 import { requirePermission } from "./rbac";
 import { PERMISSIONS } from "./permissions";
+import { limitArray, DEFAULT_QUERY_LIMIT } from "./helpers/convexLimits";
 
 /**
  * Get accounts by institution
@@ -32,11 +33,14 @@ export const getByInstitution = query({
       throw new Error("Institution does not belong to this organization");
     }
 
-    return await ctx.db
+    const accounts = await ctx.db
       .query("accounts")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .filter((q: any) => q.eq(q.field("institutionId"), args.institutionId))
       .collect();
+    
+    // Apply safe limit (accounts per institution should be small, but safety first)
+    return limitArray(accounts, 100);
   },
 });
 
@@ -52,10 +56,14 @@ export const getAll = query({
     const { userId, orgId } = await getOrgContext(ctx, args.orgId);
     await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
 
-    return await ctx.db
+    const accounts = await ctx.db
       .query("accounts")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
+    
+    // Apply safe limit to prevent exceeding Convex array limits
+    // Most orgs won't have thousands of accounts, but we cap at a safe limit
+    return limitArray(accounts, DEFAULT_QUERY_LIMIT);
   },
 });
 

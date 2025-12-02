@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { requirePermission } from "./rbac";
 import { logAuditEvent, logUserInvited } from "./audit";
+import { limitArray, DEFAULT_QUERY_LIMIT } from "./helpers/convexLimits";
 
 /**
  * List members of an organization
@@ -38,8 +39,11 @@ export const listMembers = query({
             .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
             .collect();
 
+        // Apply safe limit (orgs typically have limited members)
+        const safeMemberships = limitArray(memberships, DEFAULT_QUERY_LIMIT);
+
         const members = await Promise.all(
-            memberships.map(async (m) => {
+            safeMemberships.map(async (m) => {
                 const u = await ctx.db.get(m.userId);
                 return {
                     _id: m._id,

@@ -4,6 +4,7 @@
 
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { limitArray, DEFAULT_QUERY_LIMIT } from "./helpers/convexLimits";
 
 /**
  * Get all addresses for current user
@@ -30,7 +31,8 @@ export const getAddresses = query({
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
 
-    return addresses;
+    // Apply safe limit (users typically have few addresses)
+    return limitArray(addresses, DEFAULT_QUERY_LIMIT);
   },
 });
 

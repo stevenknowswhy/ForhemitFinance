@@ -4,6 +4,7 @@
 
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { limitArray, DEFAULT_QUERY_LIMIT } from "./helpers/convexLimits";
 
 /**
  * Get all professional contacts for current user
@@ -30,7 +31,8 @@ export const getProfessionalContacts = query({
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
 
-    return contacts;
+    // Apply safe limit (users typically have limited professional contacts)
+    return limitArray(contacts, DEFAULT_QUERY_LIMIT);
   },
 });
 

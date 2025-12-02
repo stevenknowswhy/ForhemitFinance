@@ -5,7 +5,7 @@
  * Dropdown content showing list of notifications
  */
 
-import { useNotifications } from "@/contexts/NotificationContext";
+import { useNotifications } from "@/app/contexts/NotificationContext";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { 

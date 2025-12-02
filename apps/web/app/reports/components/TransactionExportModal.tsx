@@ -77,10 +77,12 @@ export function TransactionExportModal({
   }, [dateRangePreset, customStartDate, customEndDate]);
 
   // Fetch transactions with filters
+  // Note: Convex has a maximum array length of 8192, so we cap at that limit
   const transactions = useQuery(api.plaid.getMockTransactions, {
     startDate: dateRange.start,
     endDate: dateRange.end,
     category: selectedCategory !== "all" ? selectedCategory : undefined,
+    limit: 8192, // Maximum allowed by Convex
   });
 
   // Fetch all accounts for account name lookup

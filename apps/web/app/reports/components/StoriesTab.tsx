@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, BookOpen, AlertTriangle, Download, Loader2, Database, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Id } from "convex/_generated/dataModel";
 import { generateAndDownloadPDF } from "@/lib/storyPdfGenerator";
-import { useNotifications } from "@/contexts/NotificationContext";
+import { useNotifications } from "@/app/contexts/NotificationContext";
 
 export function StoriesTab() {
   const { toast } = useToast();

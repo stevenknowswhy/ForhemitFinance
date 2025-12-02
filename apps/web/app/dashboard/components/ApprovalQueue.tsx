@@ -5,286 +5,23 @@
  * Displays list of pending entries with swipe-to-approve (mobile) and bulk actions
  */
 
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "convex/_generated/api";
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { EntryPreview } from "./EntryPreview";
+import { useState, useCallback } from "react";
 import { useOrgId } from "../../hooks/useOrgId";
-import { Check, X, Edit2, CheckCheck, Loader2, AlertCircle, RefreshCw, Filter, ArrowUpDown, Search, RotateCcw } from "lucide-react";
+import { CheckCheck, Loader2, AlertCircle, RefreshCw, Filter, ArrowUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Id } from "convex/_generated/dataModel";
-import { useSwipeable } from "react-swipeable";
 import { useToast } from "@/lib/use-toast";
+import { EditEntryModal } from "./ApprovalQueue/components/EditEntryModal";
+import { SwipeableEntryItem } from "./ApprovalQueue/components/SwipeableEntryItem";
+import { useFilterAndSort } from "./ApprovalQueue/hooks/useFilterAndSort";
+import { useAlternatives } from "./ApprovalQueue/hooks/useAlternatives";
+import { SortField, SortOrder, ConfidenceFilter, FilterType } from "./ApprovalQueue/types";
 
-interface EditEntryModalProps {
-  entry: any;
-  accounts: any[];
-  onSave: (entryId: Id<"entries_proposed">, edits: any) => void;
-  onClose: () => void;
-}
-
-function EditEntryModal({ entry, accounts, onSave, onClose }: EditEntryModalProps) {
-  const [debitAccountId, setDebitAccountId] = useState(entry.debitAccountId);
-  const [creditAccountId, setCreditAccountId] = useState(entry.creditAccountId);
-  const [amount, setAmount] = useState(entry.amount);
-  const [memo, setMemo] = useState(entry.memo || "");
-  const [isBusiness, setIsBusiness] = useState(entry.isBusiness);
-  const [showDiff, setShowDiff] = useState(false);
-
-  // Original values for diff comparison
-  const originalValues = {
-    debitAccountId: entry.debitAccountId,
-    creditAccountId: entry.creditAccountId,
-    amount: entry.amount,
-    memo: entry.memo || "",
-    isBusiness: entry.isBusiness,
-  };
-
-  // Current values
-  const currentValues = {
-    debitAccountId,
-    creditAccountId,
-    amount,
-    memo,
-    isBusiness,
-  };
-
-  // Check if there are changes
-  const hasChanges =
-    debitAccountId !== originalValues.debitAccountId ||
-    creditAccountId !== originalValues.creditAccountId ||
-    amount !== originalValues.amount ||
-    memo !== originalValues.memo ||
-    isBusiness !== originalValues.isBusiness;
-
-  const handleSave = () => {
-    onSave(entry._id, {
-      debitAccountId: debitAccountId as any,
-      creditAccountId: creditAccountId as any,
-      amount,
-      memo,
-      isBusiness,
-    });
-    onClose();
-  };
-
-  const debitAccounts = accounts.filter((a: any) =>
-    a.type === "asset" || a.type === "expense" || a.type === "equity"
-  );
-  const creditAccounts = accounts.filter((a: any) =>
-    a.type === "asset" || a.type === "liability" || a.type === "income" || a.type === "equity"
-  );
-
-  const getAccountName = (accountId: string) => {
-    return accounts.find((a: any) => a._id === accountId)?.name || "Unknown";
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">Edit Entry</h2>
-          <div className="flex items-center gap-2">
-            {hasChanges && (
-              <button
-                onClick={() => setShowDiff(!showDiff)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border"
-              >
-                {showDiff ? "Hide" : "Show"} Changes
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Diff View */}
-        {showDiff && hasChanges && (
-          <div className="mb-4 p-3 bg-muted/50 rounded-lg border border-border space-y-2">
-            <h3 className="text-sm font-semibold text-foreground mb-2">Changes Preview</h3>
-            {debitAccountId !== originalValues.debitAccountId && (
-              <div className="text-xs">
-                <span className="text-muted-foreground">Debit Account: </span>
-                <span className="line-through text-red-600 dark:text-red-400">
-                  {getAccountName(originalValues.debitAccountId)}
-                </span>
-                <span className="mx-2">→</span>
-                <span className="text-green-600 dark:text-green-400 font-medium">
-                  {getAccountName(debitAccountId)}
-                </span>
-              </div>
-            )}
-            {creditAccountId !== originalValues.creditAccountId && (
-              <div className="text-xs">
-                <span className="text-muted-foreground">Credit Account: </span>
-                <span className="line-through text-red-600 dark:text-red-400">
-                  {getAccountName(originalValues.creditAccountId)}
-                </span>
-                <span className="mx-2">→</span>
-                <span className="text-green-600 dark:text-green-400 font-medium">
-                  {getAccountName(creditAccountId)}
-                </span>
-              </div>
-            )}
-            {amount !== originalValues.amount && (
-              <div className="text-xs">
-                <span className="text-muted-foreground">Amount: </span>
-                <span className="line-through text-red-600 dark:text-red-400">
-                  ${originalValues.amount.toFixed(2)}
-                </span>
-                <span className="mx-2">→</span>
-                <span className="text-green-600 dark:text-green-400 font-medium">
-                  ${amount.toFixed(2)}
-                </span>
-              </div>
-            )}
-            {memo !== originalValues.memo && (
-              <div className="text-xs">
-                <span className="text-muted-foreground">Memo: </span>
-                <span className="line-through text-red-600 dark:text-red-400">
-                  {originalValues.memo || "(empty)"}
-                </span>
-                <span className="mx-2">→</span>
-                <span className="text-green-600 dark:text-green-400 font-medium">
-                  {memo || "(empty)"}
-                </span>
-              </div>
-            )}
-            {isBusiness !== originalValues.isBusiness && (
-              <div className="text-xs">
-                <span className="text-muted-foreground">Business: </span>
-                <span className="line-through text-red-600 dark:text-red-400">
-                  {originalValues.isBusiness ? "Yes" : "No"}
-                </span>
-                <span className="mx-2">→</span>
-                <span className="text-green-600 dark:text-green-400 font-medium">
-                  {isBusiness ? "Yes" : "No"}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Debit Account
-            </label>
-            <select
-              value={debitAccountId}
-              onChange={(e) => setDebitAccountId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-            >
-              {debitAccounts.map((acc: any) => (
-                <option key={acc._id} value={acc._id}>
-                  {acc.name} ({acc.type})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Credit Account
-            </label>
-            <select
-              value={creditAccountId}
-              onChange={(e) => setCreditAccountId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-            >
-              {creditAccounts.map((acc: any) => (
-                <option key={acc._id} value={acc._id}>
-                  {acc.name} ({acc.type})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Amount
-            </label>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-              step="0.01"
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Memo
-            </label>
-            <input
-              type="text"
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground"
-            />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={isBusiness}
-                onChange={(e) => setIsBusiness(e.target.checked)}
-                className="rounded border-border"
-              />
-              <span className="text-sm text-foreground">Business transaction</span>
-            </label>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 mt-6">
-          {hasChanges && (
-            <button
-              onClick={() => {
-                setDebitAccountId(originalValues.debitAccountId);
-                setCreditAccountId(originalValues.creditAccountId);
-                setAmount(originalValues.amount);
-                setMemo(originalValues.memo);
-                setIsBusiness(originalValues.isBusiness);
-              }}
-              className="px-4 py-2 border border-border bg-background text-foreground rounded-lg font-medium hover:bg-muted transition-colors flex items-center gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border border-border bg-background text-foreground rounded-lg font-medium hover:bg-muted transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!hasChanges}
-            className={cn(
-              "flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors",
-              "disabled:opacity-50 disabled:cursor-not-allowed"
-            )}
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-type SortField = "date" | "amount" | "confidence" | "account";
-type SortOrder = "asc" | "desc";
 
 interface ApprovalQueueProps {
-  filterType?: "all" | "business" | "personal";
+  filterType?: FilterType;
 }
 
 export function ApprovalQueue({ filterType = "all" }: ApprovalQueueProps) {
@@ -300,13 +37,12 @@ export function ApprovalQueue({ filterType = "all" }: ApprovalQueueProps) {
   );
   const approveEntry = useMutation(api.transactions.approveEntry);
   const rejectEntry = useMutation(api.transactions.rejectEntry);
-  const getAlternatives = useAction(api.ai_entries.getAlternativeSuggestions);
+  // getAlternatives is now handled by useAlternatives hook
   const { toast } = useToast();
 
   const [selectedEntries, setSelectedEntries] = useState<Set<Id<"entries_proposed">>>(new Set());
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [alternativesCache, setAlternativesCache] = useState<Record<string, any[]>>({});
   const [error, setError] = useState<{ entryId: Id<"entries_proposed"> | null; message: string } | null>(null);
   const [retryCount, setRetryCount] = useState<Record<string, number>>({});
 
@@ -316,10 +52,22 @@ export function ApprovalQueue({ filterType = "all" }: ApprovalQueueProps) {
   // Filtering and sorting state
   const [searchQuery, setSearchQuery] = useState("");
   const [filterByAccount, setFilterByAccount] = useState<string | "all">("all");
-  const [filterByConfidence, setFilterByConfidence] = useState<"all" | "high" | "medium" | "low">("all");
+  const [filterByConfidence, setFilterByConfidence] = useState<ConfidenceFilter>("all");
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [showFilters, setShowFilters] = useState(false);
+
+  // Use extracted hooks
+  const { alternativesCache } = useAlternatives(pendingEntries, accounts);
+  const { filteredAndSortedEntries } = useFilterAndSort({
+    entries: pendingEntries,
+    searchQuery,
+    filterByAccount,
+    filterByConfidence,
+    sortField,
+    sortOrder,
+    filterType,
+  });
 
   const handleApprove = useCallback(async (entryId: Id<"entries_proposed">, retry = false) => {
     if (!retry) {
@@ -512,114 +260,7 @@ export function ApprovalQueue({ filterType = "all" }: ApprovalQueueProps) {
     }
   };
 
-  // Swipeable Entry Item Component
-  interface SwipeableEntryItemProps {
-    entry: any;
-    isSelected: boolean;
-    swipeState: { direction: 'left' | 'right' | null; delta: number } | undefined;
-    onApprove: () => void;
-    onReject: () => void;
-    onEdit: () => void;
-    onToggleSelect: () => void;
-    alternatives: any[];
-    onSwipeUpdate: (direction: 'left' | 'right' | null, delta: number) => void;
-  }
-
-  function SwipeableEntryItem({
-    entry,
-    isSelected,
-    swipeState,
-    onApprove,
-    onReject,
-    onEdit,
-    onToggleSelect,
-    alternatives,
-    onSwipeUpdate,
-  }: SwipeableEntryItemProps) {
-    const swipeHandlers = useSwipeable({
-      onSwiping: (eventData) => {
-        const { dir, deltaX } = eventData;
-        if (dir === 'Left' || dir === 'Right') {
-          onSwipeUpdate(dir.toLowerCase() as 'left' | 'right', Math.abs(deltaX));
-        }
-      },
-      onSwipedLeft: () => {
-        onSwipeUpdate(null, 0);
-        onReject();
-      },
-      onSwipedRight: () => {
-        onSwipeUpdate(null, 0);
-        onApprove();
-      },
-      onSwiped: () => {
-        // Reset swipe state after swipe completes
-        onSwipeUpdate(null, 0);
-      },
-      trackMouse: false, // Only track touch
-      trackTouch: true,
-      delta: 50, // Minimum distance to trigger swipe
-      preventScrollOnSwipe: true,
-    });
-
-    const swipeDelta = swipeState?.delta || 0;
-    const swipeDirection = swipeState?.direction;
-
-    return (
-      <div
-        {...swipeHandlers}
-        className={cn(
-          "relative transition-transform duration-200 ease-out",
-          swipeDirection === 'right' && swipeDelta > 50 && "translate-x-4",
-          swipeDirection === 'left' && swipeDelta > 50 && "-translate-x-4"
-        )}
-      >
-        {/* Swipe indicator - Approve (right swipe) */}
-        {swipeDirection === 'right' && swipeDelta > 30 && (
-          <div className="absolute left-0 top-0 bottom-0 w-20 bg-green-600 rounded-l-lg flex items-center justify-center z-10">
-            <Check className="w-6 h-6 text-white" />
-          </div>
-        )}
-
-        {/* Swipe indicator - Reject (left swipe) */}
-        {swipeDirection === 'left' && swipeDelta > 30 && (
-          <div className="absolute right-0 top-0 bottom-0 w-20 bg-red-600 rounded-r-lg flex items-center justify-center z-10">
-            <X className="w-6 h-6 text-white" />
-          </div>
-        )}
-
-        {/* Entry Preview with selection checkbox */}
-        <div className={cn(
-          "relative",
-          isSelected && "ring-2 ring-primary"
-        )}>
-          <div className="absolute top-4 left-4 z-10">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={onToggleSelect}
-              className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
-              aria-label={`Select entry ${entry._id}`}
-            />
-          </div>
-          <div className={cn(isSelected && "ml-10")}>
-            <EntryPreview
-              entryId={entry._id}
-              debitAccountName={entry.debitAccount?.name || "Unknown"}
-              creditAccountName={entry.creditAccount?.name || "Unknown"}
-              amount={entry.amount}
-              explanation={entry.explanation || "No explanation available"}
-              confidence={entry.confidence || 0.5}
-              memo={entry.memo}
-              alternatives={alternatives}
-              onApprove={onApprove}
-              onReject={onReject}
-              onEdit={onEdit}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // SwipeableEntryItem is now extracted to a separate component
 
   const toggleSelect = (entryId: Id<"entries_proposed">) => {
     const newSelected = new Set(selectedEntries);
@@ -631,154 +272,8 @@ export function ApprovalQueue({ filterType = "all" }: ApprovalQueueProps) {
     setSelectedEntries(newSelected);
   };
 
-  // Filter and sort entries
-  const filteredAndSortedEntries = useMemo(() => {
-    if (!pendingEntries) return [];
-
-    let filtered = [...pendingEntries];
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((entry: any) => {
-        const memo = entry.memo?.toLowerCase() || "";
-        const debitAccount = entry.debitAccount?.name?.toLowerCase() || "";
-        const creditAccount = entry.creditAccount?.name?.toLowerCase() || "";
-        const transaction = entry.transaction;
-        const description = transaction?.description?.toLowerCase() || "";
-        const merchant = transaction?.merchant?.toLowerCase() || "";
-
-        return (
-          memo.includes(query) ||
-          debitAccount.includes(query) ||
-          creditAccount.includes(query) ||
-          description.includes(query) ||
-          merchant.includes(query)
-        );
-      });
-    }
-
-    // Account filter
-    if (filterByAccount !== "all") {
-      filtered = filtered.filter((entry: any) => {
-        return (
-          entry.debitAccountId === filterByAccount ||
-          entry.creditAccountId === filterByAccount
-        );
-      });
-    }
-
-    // Confidence filter
-    if (filterByConfidence !== "all") {
-      filtered = filtered.filter((entry: any) => {
-        const confidence = entry.confidence || 0;
-        if (filterByConfidence === "high") return confidence >= 0.8;
-        if (filterByConfidence === "medium") return confidence >= 0.6 && confidence < 0.8;
-        if (filterByConfidence === "low") return confidence < 0.6;
-        return true;
-      });
-    }
-
-    // Business/Personal filter (from prop)
-    if (filterType !== "all") {
-      filtered = filtered.filter((entry: any) => {
-        if (filterType === "business") return entry.isBusiness === true;
-        if (filterType === "personal") return entry.isBusiness === false;
-        return true;
-      });
-    }
-
-    // Sort
-    filtered.sort((a: any, b: any) => {
-      let aValue: any;
-      let bValue: any;
-
-      switch (sortField) {
-        case "date":
-          aValue = a.date || 0;
-          bValue = b.date || 0;
-          break;
-        case "amount":
-          aValue = Math.abs(a.amount || 0);
-          bValue = Math.abs(b.amount || 0);
-          break;
-        case "confidence":
-          aValue = a.confidence || 0;
-          bValue = b.confidence || 0;
-          break;
-        case "account":
-          aValue = (a.debitAccount?.name || "").toLowerCase();
-          bValue = (b.debitAccount?.name || "").toLowerCase();
-          break;
-        default:
-          return 0;
-      }
-
-      if (sortOrder === "asc") {
-        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-      } else {
-        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
-      }
-    });
-
-    return filtered;
-  }, [pendingEntries, searchQuery, filterByAccount, filterByConfidence, sortField, sortOrder]);
-
-  // Memoize low confidence entries to avoid unnecessary recalculations
-  const lowConfidenceEntries = useMemo(() => {
-    if (!pendingEntries) return [];
-    return pendingEntries.filter(
-      (entry: any) => (entry.confidence || 0) < 0.7 && entry.transactionId && !alternativesCache[entry._id]
-    );
-  }, [pendingEntries, alternativesCache]);
-
-  // Fetch alternatives for entries with low confidence (debounced to avoid excessive calls)
-  useEffect(() => {
-    if (!lowConfidenceEntries.length || !accounts) return;
-
-    // Debounce to avoid fetching for every entry simultaneously
-    const timeoutId = setTimeout(() => {
-      const fetchAlternatives = async () => {
-        for (const entry of lowConfidenceEntries) {
-          if (!entry.transactionId) continue; // Skip if no transaction ID
-          try {
-            const result = await getAlternatives({ transactionId: entry.transactionId });
-            if (result && result.alternatives) {
-              // Map alternatives to include account names
-              // Note: Account IDs from getAlternativeSuggestions are strings, need to match with Convex IDs
-              const mappedAlternatives = result.alternatives.map((alt: any) => {
-                // Convert string IDs to match Convex ID format for comparison
-                const debitAcc = accounts.find((a: any) =>
-                  a._id === alt.debitAccountId || String(a._id) === String(alt.debitAccountId)
-                );
-                const creditAcc = accounts.find((a: any) =>
-                  a._id === alt.creditAccountId || String(a._id) === String(alt.creditAccountId)
-                );
-                return {
-                  debitAccountId: alt.debitAccountId,
-                  creditAccountId: alt.creditAccountId,
-                  debitAccountName: debitAcc?.name || "Unknown",
-                  creditAccountName: creditAcc?.name || "Unknown",
-                  explanation: alt.explanation,
-                  confidence: alt.confidence,
-                };
-              });
-              setAlternativesCache((prev) => ({
-                ...prev,
-                [entry._id]: mappedAlternatives,
-              }));
-            }
-          } catch (error) {
-            console.error("Failed to fetch alternatives for entry:", error);
-          }
-        }
-      };
-
-      fetchAlternatives();
-    }, 300); // 300ms debounce
-
-    return () => clearTimeout(timeoutId);
-  }, [lowConfidenceEntries, accounts, getAlternatives]);
+  // Filtering and sorting is now handled by useFilterAndSort hook
+  // Alternatives fetching is now handled by useAlternatives hook
 
   if (!pendingEntries) {
     return (

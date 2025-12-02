@@ -6,6 +6,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { limitArray, normalizeLimit, DEFAULT_QUERY_LIMIT } from "./helpers/convexLimits";
 
 /**
  * Get unread notifications for the current user
@@ -34,11 +35,9 @@ export const getUnreadNotifications = query({
             )
             .collect();
         
-        // Sort by createdAt descending and take first 50
+        // Sort by createdAt descending and apply safe limit
         notifications.sort((a, b) => b.createdAt - a.createdAt);
-        return notifications.slice(0, 50);
-
-        return notifications;
+        return limitArray(notifications, 50);
     },
 });
 
@@ -64,17 +63,15 @@ export const getAllNotifications = query({
             return [];
         }
 
-        const limit = args.limit || 50;
+        const safeLimit = normalizeLimit(args.limit, DEFAULT_QUERY_LIMIT);
         const notifications = await ctx.db
             .query("notifications")
             .withIndex("by_user", (q: any) => q.eq("userId", user._id))
             .collect();
         
-        // Sort by createdAt descending and take limit
+        // Sort by createdAt descending and apply safe limit
         notifications.sort((a, b) => b.createdAt - a.createdAt);
-        return notifications.slice(0, limit);
-
-        return notifications;
+        return limitArray(notifications, safeLimit);
     },
 });
 

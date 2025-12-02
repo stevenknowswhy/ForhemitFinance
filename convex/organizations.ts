@@ -8,6 +8,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 import { requireOrgMember, requirePermission } from "./rbac";
+import { limitArray, DEFAULT_QUERY_LIMIT } from "./helpers/convexLimits";
 
 /**
  * Get all organizations a user belongs to
@@ -23,8 +24,11 @@ export const getUserOrganizations = query({
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
+    // Apply safe limit (users typically belong to few orgs)
+    const safeMemberships = limitArray(memberships, DEFAULT_QUERY_LIMIT);
+
     const orgs = await Promise.all(
-      memberships.map(async (membership) => {
+      safeMemberships.map(async (membership) => {
         const org = await ctx.db.get(membership.orgId);
         if (!org) return null;
         return {
@@ -52,8 +56,11 @@ export const getOrgMembers = query({
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
       .collect();
 
+    // Apply safe limit (orgs typically have limited members)
+    const safeMemberships = limitArray(memberships, DEFAULT_QUERY_LIMIT);
+
     const members = await Promise.all(
-      memberships.map(async (membership) => {
+      safeMemberships.map(async (membership) => {
         const user = await ctx.db.get(membership.userId);
         if (!user) return null;
         return {

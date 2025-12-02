@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../../components/ui/popover";
-import { useNotifications } from "@/contexts/NotificationContext";
+import { useNotifications } from "@/app/contexts/NotificationContext";
 import { NotificationDropdown } from "./NotificationDropdown";
 import { cn } from "@/lib/utils";
 
