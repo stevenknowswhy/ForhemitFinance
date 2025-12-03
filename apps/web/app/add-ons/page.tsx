@@ -174,7 +174,7 @@ export default function AddOnsPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {addons.map((addon: EnrichedAddon) => {
+            {addons.filter(addon => getAddonStatus(addon) !== 'active').map((addon: EnrichedAddon) => {
               const Icon = getAddonIcon(addon.uiPlacement?.icon);
               const status = getAddonStatus(addon);
               const daysLeft = getDaysUntilTrialEnd(addon.entitlement?.trialEnd);
