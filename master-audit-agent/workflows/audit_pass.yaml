@@ -1,0 +1,29 @@
+name: Focused Audit Pass
+description: Run a deep-dive audit on a specific focus area or set of files.
+
+inputs:
+  FOCUS_AREA:
+    description: The specific topic or subsystem to audit (e.g., "Stripe", "Super Admin").
+    required: true
+  FILES_TO_SCAN:
+    description: Comma-separated list of files or glob patterns to examine.
+    required: true
+
+steps:
+  - name: Load Context
+    action: load_files
+    files:
+      - master-audit-agent/config/file_scopes.md
+      - master-audit-agent/rules/*.md
+      - master-audit-agent/skills/*.md
+
+  - name: Focused Analysis
+    action: analyze_code
+    prompt: |
+      Perform a focused audit on the provided files with a specific focus on "${FOCUS_AREA}".
+      Apply all loaded rules and skills.
+      Identify any violations, risks, or improvement opportunities related to ${FOCUS_AREA}.
+
+  - name: Report Findings
+    action: generate_output
+    format: markdown

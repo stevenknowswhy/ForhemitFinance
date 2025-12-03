@@ -1,0 +1,24 @@
+name: PR Review
+description: Comprehensive audit of a Pull Request against Forhem Finance standards.
+
+steps:
+  - name: Load Context
+    action: load_files
+    files:
+      - master-audit-agent/config/file_scopes.md
+      - master-audit-agent/rules/*.md
+      - master-audit-agent/skills/*.md
+
+  - name: Analyze Architecture
+    action: run_skill
+    skill: architecture_review
+    input: diff
+
+  - name: Analyze Security & Multi-Tenancy
+    action: run_skill
+    skill: security_review
+    input: diff
+
+  - name: Generate Report
+    action: generate_output
+    template: master-audit-agent/templates/pr_review_output.md
