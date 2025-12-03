@@ -170,6 +170,44 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_status", ["status"]),
 
+  // Module Enablements (Module System: Org-level module enablement)
+  module_enablements: defineTable({
+    orgId: v.id("organizations"),
+    moduleId: v.string(), // "stories", "reports", etc.
+    enabled: v.boolean(),
+    enabledBy: v.id("users"), // Who enabled it
+    enabledAt: v.number(),
+    // User-level overrides (array of user preferences)
+    userOverrides: v.optional(v.array(v.object({
+      userId: v.id("users"),
+      enabled: v.boolean(),
+    }))),
+    metadata: v.optional(v.any()), // Module-specific config
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_module", ["moduleId"])
+    .index("by_org_module", ["orgId", "moduleId"]),
+
+  // Module Entitlements (Module System: Paid module access tracking)
+  module_entitlements: defineTable({
+    orgId: v.id("organizations"),
+    moduleId: v.string(),
+    planId: v.id("plans"), // Which plan includes this
+    status: v.union(
+      v.literal("active"),
+      v.literal("trial"),
+      v.literal("expired"),
+      v.literal("cancelled")
+    ),
+    trialEndsAt: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_module", ["orgId", "moduleId"]),
+
   // Audit Logs (Phase 1: Action tracking)
   audit_logs: defineTable({
     orgId: v.optional(v.id("organizations")), // Nullable for global/super actions

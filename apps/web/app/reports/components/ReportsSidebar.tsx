@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useModuleAccess } from "@/hooks/useModule";
 
 interface SubSection {
   id: string;
@@ -47,7 +48,7 @@ interface SidebarItem {
   subSections?: SubSection[];
 }
 
-const sidebarItems: SidebarItem[] = [
+const allSidebarItems: SidebarItem[] = [
   {
     value: "stories",
     label: "Stories",
@@ -92,6 +93,17 @@ export function ReportsSidebar() {
   const pathname = usePathname();
   const activeTab = searchParams.get("tab") || "reports";
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  
+  // Check module access
+  const storiesAccess = useModuleAccess("stories");
+  const reportsAccess = useModuleAccess("reports");
+  
+  // Filter sidebar items based on module access
+  const sidebarItems = allSidebarItems.filter(item => {
+    if (item.value === "stories") return storiesAccess.hasAccess;
+    if (item.value === "reports") return reportsAccess.hasAccess;
+    return true; // Goals is always available
+  });
 
   // Collapse state - persist in localStorage
   const [isCollapsed, setIsCollapsed] = useState(() => {

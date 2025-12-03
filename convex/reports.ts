@@ -1,20 +1,24 @@
 /**
  * Reports data aggregation functions
- * Re-exports all report queries from the reports/ directory
+ * Re-exports all report queries from the reports module
+ * 
+ * Note: This file maintains backward compatibility.
+ * The actual implementation is in modules/reports/convex/
  */
 
-// Re-export all report queries to maintain backward compatibility
-export { getBankLenderReportData } from "./reports/bankLender";
-export { getProfitAndLossData } from "./reports/profitLoss";
-export { getBalanceSheetData } from "./reports/balanceSheet";
-export { getCashFlowStatementData } from "./reports/cashFlow";
-export { getGeneralLedgerData } from "./reports/generalLedger";
-export { getTrialBalanceData } from "./reports/trialBalance";
-export { getBurnRateRunwayData } from "./reports/burnRateRunway";
-export { getFinancialSummaryData } from "./reports/financialSummary";
-export { getKPIDashboardData } from "./reports/kpiDashboard";
-export { getAccountsReceivableData } from "./reports/accountsReceivable";
-export { getAccountsPayableData } from "./reports/accountsPayable";
-export { getVendorSpendAnalysisData } from "./reports/vendorSpendAnalysis";
-export { getTaxPreparationData } from "./reports/taxPreparation";
-export { getYearEndAccountantPackData } from "./reports/yearEndAccountantPack";
+// Re-export from reports module
+export { getBankLenderReportData } from "./modules/reports/bankLender";
+export { getProfitAndLossData } from "./modules/reports/profitLoss";
+export { getBalanceSheetData } from "./modules/reports/balanceSheet";
+export { getCashFlowStatementData } from "./modules/reports/cashFlow";
+export { getGeneralLedgerData } from "./modules/reports/generalLedger";
+export { getTrialBalanceData } from "./modules/reports/trialBalance";
+export { getBurnRateRunwayData } from "./modules/reports/burnRateRunway";
+export { getFinancialSummaryData } from "./modules/reports/financialSummary";
+export { getKPIDashboardData } from "./modules/reports/kpiDashboard";
+export { getAccountsReceivableData } from "./modules/reports/accountsReceivable";
+export { getAccountsPayableData } from "./modules/reports/accountsPayable";
+export { getVendorSpendAnalysisData } from "./modules/reports/vendorSpendAnalysis";
+export { getTaxPreparationData } from "./modules/reports/taxPreparation";
+export { getYearEndAccountantPackData } from "./modules/reports/yearEndAccountantPack";
+export * from "./modules/reports/utils";

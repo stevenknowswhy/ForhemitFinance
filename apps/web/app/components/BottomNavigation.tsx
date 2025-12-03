@@ -3,48 +3,33 @@
 /**
  * BottomNavigation Component
  * Mobile-first bottom navigation bar (like native mobile apps)
+ * Dynamically loads navigation items from enabled modules
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Receipt, FileText, Settings, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEnabledModules } from "@/hooks/useEnabledModules";
+import { getAllNavigationItems } from "@/lib/module-navigation";
 
 export function BottomNavigation() {
   const pathname = usePathname();
+  const { modules: enabledModules } = useEnabledModules();
 
-  const navItems = [
-    {
-      href: "/dashboard",
-      label: "Home",
-      icon: Home,
-    },
-    {
-      href: "/transactions",
-      label: "Transactions",
-      icon: Receipt,
-    },
-    {
-      href: "/analytics",
-      label: "Analytics",
-      icon: BarChart3,
-    },
-    {
-      href: "/reports",
-      label: "Reports",
-      icon: FileText,
-    },
-    {
-      href: "/settings",
-      label: "Settings",
-      icon: Settings,
-    },
-  ];
+  // Get enabled module IDs
+  const enabledModuleIds = enabledModules
+    .filter(m => m.enabled)
+    .map(m => m.moduleId);
+
+  // Get all navigation items (core + modules)
+  // For mobile, we limit to 5 items max (including core items)
+  const allNavItems = getAllNavigationItems(enabledModuleIds);
+  const navItems = allNavItems.slice(0, 5); // Limit to 5 for mobile
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 lg:hidden">
       <div className="flex items-center justify-around h-16 px-2">
-        {navItems.map((item: any) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || 
             (item.href === "/dashboard" && pathname === "/dashboard") ||
@@ -55,7 +40,7 @@ export function BottomNavigation() {
           
           return (
             <Link
-              key={item.href}
+              key={item.id || item.href}
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 h-full transition-colors",

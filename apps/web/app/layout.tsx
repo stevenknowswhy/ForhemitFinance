@@ -5,6 +5,7 @@ import "./globals.css";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { OrgContextProvider } from "./contexts/OrgContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { ModuleContextProvider } from "../contexts/ModuleContext";
 import { StripeProvider } from "./components/StripeProvider";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Toaster } from "@/components/ui/toaster";
@@ -41,13 +42,15 @@ export default function RootLayout({
             <StripeProvider>
               <ConvexClientProvider>
                 <OrgContextProvider>
-                  <NotificationProvider>
-                    <ErrorBoundary>
-                      <ImpersonationBanner />
-                      {children}
-                      <Toaster />
-                    </ErrorBoundary>
-                  </NotificationProvider>
+                  <ModuleContextProvider>
+                    <NotificationProvider>
+                      <ErrorBoundary>
+                        <ImpersonationBanner />
+                        {children}
+                        <Toaster />
+                      </ErrorBoundary>
+                    </NotificationProvider>
+                  </ModuleContextProvider>
                 </OrgContextProvider>
               </ConvexClientProvider>
             </StripeProvider>

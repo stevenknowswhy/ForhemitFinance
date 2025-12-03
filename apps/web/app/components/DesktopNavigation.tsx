@@ -3,48 +3,31 @@
 /**
  * DesktopNavigation Component
  * Clean, simple top navigation for desktop/web version
+ * Dynamically loads navigation items from enabled modules
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Receipt, BarChart3, FileText, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/nextjs";
 import { ThemeToggle } from "./ThemeToggle";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { NotificationBell } from "./NotificationBell";
+import { useEnabledModules } from "@/hooks/useEnabledModules";
+import { getAllNavigationItems } from "@/lib/module-navigation";
 
 export function DesktopNavigation() {
   const pathname = usePathname();
   const { user } = useUser();
+  const { modules: enabledModules } = useEnabledModules();
 
-  const navItems = [
-    {
-      href: "/dashboard",
-      label: "Home",
-      icon: Home,
-    },
-    {
-      href: "/transactions",
-      label: "Transactions",
-      icon: Receipt,
-    },
-    {
-      href: "/analytics",
-      label: "Analytics",
-      icon: BarChart3,
-    },
-    {
-      href: "/reports",
-      label: "Reports",
-      icon: FileText,
-    },
-    {
-      href: "/settings",
-      label: "Settings",
-      icon: Settings,
-    },
-  ];
+  // Get enabled module IDs
+  const enabledModuleIds = enabledModules
+    .filter(m => m.enabled)
+    .map(m => m.moduleId);
+
+  // Get all navigation items (core + modules)
+  const navItems = getAllNavigationItems(enabledModuleIds);
 
   return (
     <nav className="hidden lg:flex items-center gap-1 bg-card border-b border-border px-4 md:px-6">
@@ -55,13 +38,14 @@ export function DesktopNavigation() {
       </div>
       
       <div className="flex items-center gap-1 flex-1">
-        {navItems.map((item: any) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || 
+            (item.href === "/reports" && pathname?.startsWith("/reports"));
           
           return (
             <Link
-              key={item.href}
+              key={item.id || item.href}
               href={item.href}
               className={cn(
                 "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors rounded-lg",

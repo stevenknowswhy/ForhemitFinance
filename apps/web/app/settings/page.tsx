@@ -36,6 +36,7 @@ import { PrivacySettings } from "./sections/PrivacySettings";
 import { AppDisplaySettings } from "./sections/AppDisplaySettings";
 import { BusinessProfileSettings } from "./sections/BusinessProfileSettings";
 import { ProfessionalNetworkSettings } from "./sections/ProfessionalNetworkSettings";
+import { AddOnsSettings } from "./sections/AddOnsSettings";
 import { 
   User, 
   Shield, 
@@ -486,7 +487,34 @@ export default function SettingsPage() {
             </Card>
           </AccordionItem>
 
-          {/* Category 11: Advanced */}
+          {/* Category 11: Add-ons */}
+          <AccordionItem 
+            id="addons"
+            value="addons" 
+            data-accordion-trigger
+            className="border-2 rounded-lg overflow-hidden transition-all duration-200 hover:border-primary/50 hover:shadow-md"
+          >
+            <Card className="border-0 shadow-none bg-card/50 hover:bg-card transition-colors duration-200">
+              <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors duration-200 [&[data-state=open]>div>svg]:rotate-180">
+                <CardHeader className="flex-1 p-0">
+                  <CardTitle className="flex items-center gap-2 text-xl group">
+                    <Sparkles className="w-6 h-6 transition-all duration-200 group-hover:text-primary" />
+                    Add-ons & Modules
+                  </CardTitle>
+                  <CardDescription className="group-hover:text-foreground/80 transition-colors">
+                    Enable or disable optional features and modules
+                  </CardDescription>
+                </CardHeader>
+              </AccordionTrigger>
+              <AccordionContent>
+                <CardContent className="px-6 pb-6 pt-0">
+                  <AddOnsSettings />
+                </CardContent>
+              </AccordionContent>
+            </Card>
+          </AccordionItem>
+
+          {/* Category 12: Advanced */}
           <AccordionItem 
             id="advanced"
             value="advanced" 

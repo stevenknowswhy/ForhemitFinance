@@ -35,7 +35,7 @@ The script `test-stories-and-reports-comprehensive.ts` tests:
 npx convex dev
 
 # In another terminal, run the test
-npx tsx scripts/test-stories-and-reports-comprehensive.ts
+npx tsx tests/integration/stories-and-reports-comprehensive.test.ts
 ```
 
 ### Option 2: Using Convex CLI (Alternative)
