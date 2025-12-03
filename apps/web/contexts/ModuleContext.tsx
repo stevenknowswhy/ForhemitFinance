@@ -7,21 +7,22 @@
 
 import { createContext, useContext, ReactNode } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useOrg } from "@/app/contexts/OrgContext";
 import { useModule, useModuleAccess } from "../hooks/useModule";
-import { useEnabledModules } from "../hooks/useEnabledModules";
+import { useEnabledModules, useModuleStatuses } from "../hooks/useEnabledModules";
 import { useToast } from "@/components/ui/hooks/use-toast";
 
 interface ModuleContextType {
   // Module queries
   enabledModules: ReturnType<typeof useEnabledModules>;
-  
+  moduleStatuses: ReturnType<typeof useModuleStatuses>;
+
   // Module management functions
   enableModule: (moduleId: string, metadata?: any) => Promise<void>;
   disableModule: (moduleId: string) => Promise<void>;
   setUserOverride: (moduleId: string, enabled: boolean) => Promise<void>;
-  
+
   // Helper functions
   isModuleEnabled: (moduleId: string) => boolean | undefined;
 }
@@ -31,9 +32,10 @@ const ModuleContext = createContext<ModuleContextType | undefined>(undefined);
 export function ModuleContextProvider({ children }: { children: ReactNode }) {
   const { currentOrgId, currentUserId } = useOrg();
   const { toast } = useToast();
-  
+
   const enabledModules = useEnabledModules();
-  
+  const moduleStatuses = useModuleStatuses();
+
   const enableModuleMutation = useMutation(api.modules.enableModule);
   const disableModuleMutation = useMutation(api.modules.disableModule);
   const setUserOverrideMutation = useMutation(api.modules.setUserModuleOverride);
@@ -54,7 +56,7 @@ export function ModuleContextProvider({ children }: { children: ReactNode }) {
         moduleId,
         metadata,
       });
-      
+
       toast({
         title: "Module Enabled",
         description: `${moduleId} has been enabled for your organization`,
@@ -83,7 +85,7 @@ export function ModuleContextProvider({ children }: { children: ReactNode }) {
         orgId: currentOrgId,
         moduleId,
       });
-      
+
       toast({
         title: "Module Disabled",
         description: `${moduleId} has been disabled for your organization`,
@@ -132,6 +134,7 @@ export function ModuleContextProvider({ children }: { children: ReactNode }) {
     <ModuleContext.Provider
       value={{
         enabledModules,
+        moduleStatuses,
         enableModule,
         disableModule,
         setUserOverride,

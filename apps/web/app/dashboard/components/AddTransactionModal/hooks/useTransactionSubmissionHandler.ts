@@ -3,9 +3,9 @@
  */
 
 import { useMutation } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useToast } from "@/lib/use-toast";
-import type { Id } from "convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import type { TransactionType, LineItem } from "../types";
 import { validateTransactionForm } from "../utils/formHelpers";
 

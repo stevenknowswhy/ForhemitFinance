@@ -7,9 +7,9 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useToast } from "@/components/ui/hooks/use-toast";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 interface Notification {
   _id: Id<"notifications">;
@@ -51,16 +51,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (notifications.length === 0) return;
 
     const newNotifications = notifications.filter(
-      (n) => n.createdAt > lastNotificationTime && n.status === "unread"
+      (n: Notification) => n.createdAt > lastNotificationTime && n.status === "unread"
     );
 
     if (newNotifications.length > 0) {
       // Update last notification time
-      const latestTime = Math.max(...newNotifications.map((n) => n.createdAt));
+      const latestTime = Math.max(...newNotifications.map((n: Notification) => n.createdAt));
       setLastNotificationTime(latestTime);
 
       // Show toast for each new notification
-      newNotifications.forEach((notification) => {
+      newNotifications.forEach((notification: Notification) => {
         const isError = notification.type === "story_failed" || notification.type === "report_failed";
         
         toast({

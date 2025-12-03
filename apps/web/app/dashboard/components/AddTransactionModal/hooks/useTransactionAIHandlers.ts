@@ -4,10 +4,10 @@
 
 import { useEffect } from "react";
 import { useAction, useMutation } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useToast } from "@/lib/use-toast";
 import type { TransactionType, LineItem } from "../types";
-import type { Id } from "convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 export interface UseTransactionAIHandlersProps {
   // Form values
@@ -35,9 +35,9 @@ export interface UseTransactionAIHandlersProps {
   aiCategoryConfidence: number | undefined;
   setAiCategoryConfidence: (confidence: number | undefined) => void;
   lineItemAILoading: Record<string, boolean>;
-  setLineItemAILoading: (loading: Record<string, boolean>) => void;
+  setLineItemAILoading: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   lineItemAISuggestions: Record<string, any[]>;
-  setLineItemAISuggestions: (suggestions: Record<string, any[]>) => void;
+  setLineItemAISuggestions: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
   
   // Form setters
   setCategory: (category: string) => void;
@@ -368,7 +368,7 @@ export function useTransactionAIHandlers({
       return;
     }
 
-    setLineItemAILoading(prev => ({ ...prev, [lineItemId]: true }));
+    setLineItemAILoading((prev: Record<string, boolean>) => ({ ...prev, [lineItemId]: true }) as Record<string, boolean>);
 
     try {
       const amountNum = parseFloat(item.amount);
@@ -391,7 +391,7 @@ export function useTransactionAIHandlers({
         updateLineItem(lineItemId, "category", suggestion.category || "");
         updateLineItem(lineItemId, "debitAccountId", suggestion.debitAccountId || "");
         updateLineItem(lineItemId, "creditAccountId", suggestion.creditAccountId || "");
-        setLineItemAISuggestions(prev => ({ ...prev, [lineItemId]: result.suggestions }));
+        setLineItemAISuggestions((prev: Record<string, any[]>) => ({ ...prev, [lineItemId]: result.suggestions }) as Record<string, any[]>);
         
         // Show toast for auto-trigger
         if (isAutoTrigger) {

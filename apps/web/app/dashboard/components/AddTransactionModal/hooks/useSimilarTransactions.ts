@@ -4,7 +4,7 @@
 
 import { useEffect } from "react";
 import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import type { TransactionType } from "../types";
 
 export interface UseSimilarTransactionsReturn {

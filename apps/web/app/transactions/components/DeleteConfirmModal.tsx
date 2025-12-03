@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 interface DeleteConfirmModalProps {
   transactionId: Id<"transactions_raw">;

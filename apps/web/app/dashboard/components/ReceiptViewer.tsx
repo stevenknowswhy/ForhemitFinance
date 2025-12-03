@@ -8,9 +8,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { X, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Loader2, FileText } from "lucide-react";
 import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
-import { cn } from "@/lib/utils";
-import { Id } from "convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 
 interface ReceiptViewerProps {
   transactionId: Id<"transactions_raw">;

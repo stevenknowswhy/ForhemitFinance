@@ -7,7 +7,7 @@
 
 import { Suspense } from "react";
 import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { DesktopNavigation } from "../components/DesktopNavigation";
@@ -122,13 +122,13 @@ function AnalyticsContent() {
               analytics={businessAnalytics}
               burnRate={businessBurnRate}
               runway={businessRunway}
-              chartData={chartData}
+              chartData={chartData!}
             />
           )}
           {activeTab === "personal" && (
             <PersonalTab
               analytics={personalAnalytics}
-              chartData={chartData}
+              chartData={chartData!}
             />
           )}
           {activeTab === "blended" && (

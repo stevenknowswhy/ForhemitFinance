@@ -6,8 +6,8 @@
  */
 
 import { useMutation } from "convex/react";
-import { api } from "convex/_generated/api";
-import { Id } from "convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import { Id } from "@convex/_generated/dataModel";
 import { Check, X, Edit2, AlertCircle, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Reports Page
+ * Insights Page
  * Sidebar navigation system: Stories, Reports, Goals
  */
 
@@ -9,33 +9,41 @@ import { Suspense } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { DesktopNavigation } from "../components/DesktopNavigation";
 import { BottomNavigation } from "../components/BottomNavigation";
 import { ReportsSidebar } from "./components/ReportsSidebar";
-import { BookOpen, FileText, Target } from "lucide-react";
+import { BookOpen, FileText, Target, Store, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReportsTab } from "./components/ReportsTab";
 import { StoriesTab } from "./components/StoriesTab";
 import { GoalsTab } from "./components/GoalsTab";
-import { useEnabledModules } from "@/hooks/useEnabledModules";
-import { useModuleAccess } from "@/hooks/useModule";
+import { useModuleStatuses } from "@/hooks/useEnabledModules";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 function ReportsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { modules: enabledModules } = useEnabledModules();
+  const { modules: moduleStatuses } = useModuleStatuses();
   
-  // Check which modules are enabled
-  const storiesAccess = useModuleAccess("stories");
-  const reportsAccess = useModuleAccess("reports");
+  // Get enabled modules (must pass all three checks)
+  const enabledModules = moduleStatuses.filter(
+    (moduleStatus) =>
+      moduleStatus.isOrgEnabled &&
+      moduleStatus.isUserEnabled &&
+      moduleStatus.hasEntitlement
+  );
   
-  // Determine default tab (first available enabled module)
+  // Check if specific modules are enabled
+  const storiesEnabled = enabledModules.some((m) => m.manifest.id === "stories");
+  const reportsEnabled = enabledModules.some((m) => m.manifest.id === "reports");
+  
+  // Determine default tab (always default to Insights)
   const getDefaultTab = () => {
-    if (reportsAccess.hasAccess) return "reports";
-    if (storiesAccess.hasAccess) return "stories";
-    return "goals"; // Fallback to goals if nothing else
+    return "reports"; // Always default to Insights tab
   };
   
   const activeTab = searchParams.get("tab") || getDefaultTab();
@@ -47,9 +55,10 @@ function ReportsContent() {
   };
 
   // Build available tabs based on enabled modules
+  // Insights tab is always shown, even if no modules are enabled
   const availableTabs = [
-    ...(storiesAccess.hasAccess ? [{ id: "stories", label: "Stories", icon: BookOpen }] : []),
-    ...(reportsAccess.hasAccess ? [{ id: "reports", label: "Reports", icon: FileText }] : []),
+    ...(storiesEnabled ? [{ id: "stories", label: "Stories", icon: BookOpen }] : []),
+    { id: "reports", label: "Insights", icon: FileText }, // Always show Insights tab
     { id: "goals", label: "Goals", icon: Target }, // Goals is always available (core feature)
   ];
 
@@ -87,8 +96,13 @@ function ReportsContent() {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto p-4 md:p-8">
-          {activeTab === "stories" && storiesAccess.hasAccess && <StoriesTab />}
-          {activeTab === "reports" && reportsAccess.hasAccess && <ReportsTab />}
+          {activeTab === "stories" && storiesEnabled && <StoriesTab />}
+          {activeTab === "stories" && !storiesEnabled && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <p className="text-muted-foreground">Stories module is not enabled. Enable it in the Marketplace.</p>
+            </div>
+          )}
+          {activeTab === "reports" && <ReportsTab />}
           {activeTab === "goals" && <GoalsTab />}
           {!availableTabs.some(t => t.id === activeTab) && (
             <div className="flex flex-col items-center justify-center py-12">
@@ -97,6 +111,35 @@ function ReportsContent() {
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+/**
+ * Empty state component for Insights when no modules are enabled
+ */
+function InsightsEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <Card className="max-w-md w-full">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 p-3 bg-primary/10 rounded-full w-fit">
+            <Sparkles className="w-8 h-8 text-primary" />
+          </div>
+          <CardTitle className="text-2xl">No Insights Available</CardTitle>
+          <CardDescription className="text-center mt-2">
+            Enable insights modules from the marketplace to start generating reports and stories
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center">
+          <Link href="/add-ons">
+            <Button className="w-full" size="lg">
+              <Store className="w-4 h-4 mr-2" />
+              Browse Marketplace
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -133,7 +176,7 @@ export default function ReportsPage() {
       {/* Mobile Header */}
       <div className="lg:hidden sticky top-0 z-40 bg-background border-b border-border">
         <div className="p-4">
-          <h1 className="text-xl font-bold text-foreground">Reports</h1>
+          <h1 className="text-xl font-bold text-foreground">Insights</h1>
         </div>
       </div>
 

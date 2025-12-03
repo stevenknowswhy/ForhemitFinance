@@ -3,7 +3,7 @@
  */
 
 import type { TransactionIntent, LineItem } from "../types";
-import type { Id } from "convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 
 export interface ResetFormParams {
   setIntent: (intent: TransactionIntent | null) => void;

@@ -7,7 +7,7 @@
 
 import React from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { RefreshCw, CheckCircle2, AlertCircle, Clock, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";

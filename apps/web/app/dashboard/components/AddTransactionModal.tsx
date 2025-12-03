@@ -197,7 +197,7 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Quick Business/Personal Toggle - Prominent visual indicator */}
               <TransactionTypeToggle
-                isBusiness={isBusiness}
+                isBusiness={isBusiness ?? false}
                 transactionType={transactionType}
                 onToggle={() => {
                   // Toggle between business and personal while keeping transaction type
@@ -267,8 +267,8 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
                 showAIButton={showAIButton}
                 canUseAI={canUseAI}
                 isAILoading={isAILoading}
-                aiSuggestedCategory={aiSuggestedCategory}
-                aiCategoryConfidence={aiCategoryConfidence}
+                aiSuggestedCategory={aiSuggestedCategory ?? null}
+                aiCategoryConfidence={aiCategoryConfidence ?? null}
                 aiSuggestions={aiSuggestions}
                 handleManualAITrigger={handleManualAITrigger}
                 handleDoubleEntryAI={handleDoubleEntryAI}
@@ -281,7 +281,7 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
                 duplicateDismissed={duplicateDismissed}
                 setDuplicateDismissed={setDuplicateDismissed}
                 isLoadingSplit={isLoadingSplit}
-                handleSplitSuggestion={handleSplitSuggestion}
+                handleSplitSuggestion={() => handleSplitSuggestion(null)}
                 handleItemizationToggle={handleItemizationToggle}
                 userAccounts={userAccounts}
               />
@@ -366,7 +366,7 @@ export function AddTransactionModal({ onClose }: AddTransactionModalProps) {
                   addLineItem={addLineItem}
                   removeLineItem={removeLineItem}
                   updateLineItem={updateLineItem}
-                  disableItemization={handleItemizationToggle}
+                  disableItemization={() => handleItemizationToggle(false)}
                   handleLineItemAI={handleLineItemAI}
                   lineItemAILoading={lineItemAILoading}
                   lineItemAISuggestions={lineItemAISuggestions}

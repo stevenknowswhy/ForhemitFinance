@@ -82,16 +82,16 @@ export function ItemizationPanel({
               type="button"
               onClick={() => {
                 // Pre-fill line items from OCR
-                setLineItems(receiptOCRData.items.map((item: any, index: number) => ({
-                  id: Date.now().toString() + index,
-                  description: item.description || "",
-                  category: "",
-                  amount: item.amount.toFixed(2),
-                  tax: "",
-                  tip: "",
-                  debitAccountId: "",
-                  creditAccountId: "",
-                })));
+                                                  setLineItems(receiptOCRData.items?.map((item: any, index: number) => ({
+                                                    id: Date.now().toString() + index,
+                                                    description: item.description || "",
+                                                    category: "",
+                                                    amount: item.amount.toFixed(2),
+                                                    tax: "",
+                                                    tip: "",
+                                                    debitAccountId: "",
+                                                    creditAccountId: "",
+                                                  })) || []);;
               }}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors min-h-[44px]"
             >

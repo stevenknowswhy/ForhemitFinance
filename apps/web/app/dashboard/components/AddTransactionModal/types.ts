@@ -44,3 +44,21 @@ export interface FormErrors {
   [key: string]: string;
 }
 
+export interface AISuggestion {
+  category: string;
+  debitAccountId: string;
+  creditAccountId: string;
+  explanation: string;
+  confidence: number; // 0-1
+  isNewCategory?: boolean;
+  debitAccountName?: string;
+  creditAccountName?: string;
+  isBusiness?: boolean;
+}
+
+export interface ReceiptOCRData {
+  url: string;
+  ocrData?: any; // This will likely be refined later
+  items?: any[];
+  confidence?: number;
+}

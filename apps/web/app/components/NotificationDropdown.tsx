@@ -18,7 +18,7 @@ import {
   Trash2,
   Clock
 } from "lucide-react";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import Link from "next/link";

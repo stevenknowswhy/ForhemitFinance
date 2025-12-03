@@ -16,7 +16,7 @@ interface ReceiptOCRData {
   tax?: number;
   tip?: number;
   paymentMethod?: string;
-  confidence: number;
+  confidence?: number;
 }
 
 interface ReceiptPreviewProps {

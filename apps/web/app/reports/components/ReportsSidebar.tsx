@@ -3,9 +3,10 @@
 /**
  * ReportsSidebar Component
  * Sidebar navigation for Reports page sections (Stories, Reports, Goals)
+ * Now driven entirely by enabled modules and their insightsNavigation manifests
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { 
   BookOpen, 
@@ -18,22 +19,18 @@ import {
   Users,
   TrendingUp,
   DollarSign,
-  Scale,
   ArrowLeftRight,
-  Calculator,
-  Flame,
   BarChart3,
   Receipt,
   FileCheck,
   ShoppingCart,
-  Briefcase,
   FileSpreadsheet,
   Banknote,
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useModuleAccess } from "@/hooks/useModule";
+import { useModuleStatuses } from "@/hooks/useEnabledModules";
 
 interface SubSection {
   id: string;
@@ -48,44 +45,37 @@ interface SidebarItem {
   subSections?: SubSection[];
 }
 
-const allSidebarItems: SidebarItem[] = [
-  {
-    value: "stories",
-    label: "Stories",
-    icon: BookOpen,
-    subSections: [
-      { id: "stories-company", label: "Company Story", icon: Building2 },
-      { id: "stories-banker", label: "Banker Story", icon: Banknote },
-      { id: "stories-investor", label: "Investor Story", icon: TrendingUp },
-      { id: "stories-generate", label: "Generate New Story", icon: Sparkles },
-    ],
-  },
-  {
-    value: "reports",
-    label: "Reports",
-    icon: FileText,
-    subSections: [
-      { id: "reports-core", label: "Core Financial Reports", icon: DollarSign },
-      { id: "reports-health", label: "Business Health", icon: BarChart3 },
-      { id: "reports-stakeholder", label: "Stakeholder Reports", icon: Users },
-      { id: "reports-operational", label: "Operational Reports", icon: ShoppingCart },
-      { id: "reports-accounting", label: "Accounting Reports", icon: FileCheck },
-      { id: "reports-tax", label: "Tax & Compliance", icon: Receipt },
-      { id: "reports-export", label: "Transaction Export", icon: FileSpreadsheet },
-    ],
-  },
-  {
-    value: "goals",
-    label: "Goals",
-    icon: Target,
-    subSections: [
-      { id: "goals-revenue", label: "Revenue Goals", icon: TrendingUp },
-      { id: "goals-expense", label: "Expense Reduction", icon: ArrowLeftRight },
-      { id: "goals-cashflow", label: "Cash Flow Goals", icon: DollarSign },
-      { id: "goals-custom", label: "Custom Goals", icon: Target },
-    ],
-  },
-];
+// Icon name to component mapping
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  BookOpen,
+  FileText,
+  Target,
+  Building2,
+  Users,
+  TrendingUp,
+  DollarSign,
+  ArrowLeftRight,
+  BarChart3,
+  Receipt,
+  FileCheck,
+  ShoppingCart,
+  FileSpreadsheet,
+  Banknote,
+  Sparkles,
+};
+
+// Goals is always available (core feature, not a module)
+const goalsSidebarItem: SidebarItem = {
+  value: "goals",
+  label: "Goals",
+  icon: Target,
+  subSections: [
+    { id: "goals-revenue", label: "Revenue Goals", icon: TrendingUp },
+    { id: "goals-expense", label: "Expense Reduction", icon: ArrowLeftRight },
+    { id: "goals-cashflow", label: "Cash Flow Goals", icon: DollarSign },
+    { id: "goals-custom", label: "Custom Goals", icon: Target },
+  ],
+};
 
 export function ReportsSidebar() {
   const searchParams = useSearchParams();
@@ -94,16 +84,73 @@ export function ReportsSidebar() {
   const activeTab = searchParams.get("tab") || "reports";
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   
-  // Check module access
-  const storiesAccess = useModuleAccess("stories");
-  const reportsAccess = useModuleAccess("reports");
+  // Get all module statuses
+  const { modules: moduleStatuses } = useModuleStatuses();
   
-  // Filter sidebar items based on module access
-  const sidebarItems = allSidebarItems.filter(item => {
-    if (item.value === "stories") return storiesAccess.hasAccess;
-    if (item.value === "reports") return reportsAccess.hasAccess;
-    return true; // Goals is always available
-  });
+  // Build sidebar items from enabled modules
+  const sidebarItems = useMemo(() => {
+    const items: SidebarItem[] = [];
+    
+    // Get enabled modules (must pass all three checks)
+    const enabledModules = moduleStatuses.filter(
+      (moduleStatus) =>
+        moduleStatus.isOrgEnabled &&
+        moduleStatus.isUserEnabled &&
+        moduleStatus.hasEntitlement &&
+        moduleStatus.manifest.insightsNavigation
+    );
+    
+    // Build sidebar items from each enabled module's insightsNavigation
+    enabledModules.forEach((moduleStatus) => {
+      const { manifest } = moduleStatus;
+      const insightsNav = manifest.insightsNavigation;
+      
+      // Defensively skip modules without insightsNavigation
+      if (!insightsNav?.sidebarItems || insightsNav.sidebarItems.length === 0) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug(
+            `Module ${manifest.id} is enabled but has no insightsNavigation.sidebarItems`
+          );
+        }
+        return;
+      }
+      
+      insightsNav.sidebarItems.forEach((sidebarItem) => {
+        // Map icon string to component
+        const IconComponent = sidebarItem.icon
+          ? iconMap[sidebarItem.icon] || FileText
+          : FileText;
+        
+        // Warn in dev if icon is missing from map
+        if (process.env.NODE_ENV === "development" && sidebarItem.icon && !iconMap[sidebarItem.icon]) {
+          console.warn(
+            `Icon "${sidebarItem.icon}" not found in iconMap for module ${manifest.id}, using FileText fallback`
+          );
+        }
+        
+        // Map sub-section icons
+        const subSections: SubSection[] | undefined = sidebarItem.subSections?.map(
+          (sub) => ({
+            id: sub.id,
+            label: sub.label,
+            icon: sub.icon ? iconMap[sub.icon] || undefined : undefined,
+          })
+        );
+        
+        items.push({
+          value: sidebarItem.id,
+          label: sidebarItem.label,
+          icon: IconComponent,
+          subSections,
+        });
+      });
+    });
+    
+    // Always add Goals at the end (core feature)
+    items.push(goalsSidebarItem);
+    
+    return items;
+  }, [moduleStatuses]);
 
   // Collapse state - persist in localStorage
   const [isCollapsed, setIsCollapsed] = useState(() => {

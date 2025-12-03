@@ -1,7 +1,7 @@
 "use client";
 
 import { useOrg } from "../contexts/OrgContext";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 /**
  * Hook to get current orgId with loading and error states

@@ -2,100 +2,149 @@
 
 /**
  * Add-ons Marketplace Page
- * Browse and manage available modules
+ * Browse and manage available add-ons with pricing, trials, and purchases
  */
 
-import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
 import { useOrg } from "@/app/contexts/OrgContext";
-import { useModuleContext } from "@/contexts/ModuleContext";
 import { DesktopNavigation } from "../components/DesktopNavigation";
 import { BottomNavigation } from "../components/BottomNavigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { BookOpen, FileText, Loader2, CheckCircle2, Lock, Sparkles } from "lucide-react";
-import { useModuleAccess } from "@/hooks/useModule";
-// Note: Module registry is server-side only for now
-// For client-side, we'll need to fetch available modules from the backend
-// For now, we'll hardcode the known modules
-const KNOWN_MODULES = [
-  {
-    id: "stories",
-    name: "AI Stories",
-    description: "Generate AI-powered narrative stories from your financial data.",
-    icon: BookOpen,
-    billing: { type: "free" as const },
-    version: "1.0.0",
-  },
-  {
-    id: "reports",
-    name: "Financial Reports",
-    description: "Generate comprehensive financial reports including P&L, Balance Sheet, and more.",
-    icon: FileText,
-    billing: { type: "free" as const },
-    version: "1.0.0",
-  },
-];
-import { useState } from "react";
+import { BookOpen, FileText, Loader2, CheckCircle2, Lock, Sparkles, Clock, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { Id, Doc } from "@convex/_generated/dataModel";
+
+type EnrichedAddon = Doc<"addons"> & {
+  entitlement: {
+    status: string;
+    source: string;
+    trialEnd?: number;
+    purchasedAt?: number;
+    lastPaymentStatus?: string;
+  } | null;
+  campaigns: Doc<"pricing_campaigns">[];
+};
+
+// Map icon names to components
+const iconMap: { [key: string]: React.ElementType } = {
+  BookOpen,
+  FileText,
+  Sparkles,
+};
+
+function formatPrice(amount: number, currency: string = "usd") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(amount / 100);
+}
 
 export default function AddOnsPage() {
   const { currentOrgId, userRole } = useOrg();
-  const { enabledModules, enableModule, disableModule } = useModuleContext();
-  const [loadingModule, setLoadingModule] = useState<string | null>(null);
-
-  // Get all available modules (hardcoded for now, will be fetched from backend later)
-  const allModules = KNOWN_MODULES;
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   const canManageModules = userRole === "ORG_OWNER" || userRole === "ORG_ADMIN";
 
-  const handleToggleModule = async (moduleId: string, currentlyEnabled: boolean) => {
-    if (!canManageModules) {
-      return;
-    }
+  // Get available add-ons
+  const addons = useQuery(
+    api.addons.getAvailableAddons,
+    currentOrgId ? { orgId: currentOrgId } : "skip"
+  );
 
-    setLoadingModule(moduleId);
+  // Mutations
+  const enableFreeAddon = useMutation(api.addons.enableFreeAddon);
+  const startTrial = useMutation(api.addons.startAddonTrial);
+  const declineOnboarding = useMutation(api.addons.declineOnboardingOffer);
+  const declinePreTrial = useMutation(api.addons.declinePreTrialOffer);
+
+  // Handle enabling free add-on
+  const handleEnableFree = async (addonId: Id<"addons">) => {
+    if (!currentOrgId) return;
+    setLoadingAction(addonId);
     try {
-      if (currentlyEnabled) {
-        await disableModule(moduleId);
+      await enableFreeAddon({ orgId: currentOrgId, addonId });
+    } catch (error) {
+      console.error("Failed to enable add-on:", error);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  // Handle starting trial
+  const handleStartTrial = async (addonId: Id<"addons">) => {
+    if (!currentOrgId) return;
+    setLoadingAction(addonId);
+    try {
+      await startTrial({ orgId: currentOrgId, addonId });
+    } catch (error) {
+      console.error("Failed to start trial:", error);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  // Handle purchase
+  const handlePurchase = async (addonId: Id<"addons">, context: "onboarding" | "trial" | "marketplace" = "marketplace") => {
+    if (!currentOrgId) return;
+    setLoadingAction(addonId);
+    try {
+      const response = await fetch("/api/checkout/addon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId: currentOrgId, addonId, context }),
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
       } else {
-        await enableModule(moduleId);
+        throw new Error(data.error || "Failed to create checkout session");
       }
     } catch (error) {
-      console.error("Failed to toggle module:", error);
+      console.error("Failed to start purchase:", error);
     } finally {
-      setLoadingModule(null);
+      setLoadingAction(null);
     }
   };
 
-  const getModuleIcon = (moduleId: string) => {
-    switch (moduleId) {
-      case "stories":
-        return BookOpen;
-      case "reports":
-        return FileText;
-      default:
-        return Sparkles;
-    }
+  // Get pricing for each add-on
+  const getPricing = async (addonId: Id<"addons">) => {
+    if (!currentOrgId) return null;
+    // This would use a query hook, but for now we'll calculate in component
+    return null;
   };
 
-  const getModuleStatus = (moduleId: string) => {
-    const enablement = enabledModules.modules.find(m => m.moduleId === moduleId);
-    return {
-      enabled: enablement?.enabled ?? false,
-      isLoading: enabledModules.isLoading,
-    };
+  const getAddonIcon = (iconName?: string) => {
+    return iconMap[iconName || ""] || Sparkles;
   };
 
-  const getBillingBadge = (billing: any) => {
-    if (billing.type === "free") {
-      return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">Free</Badge>;
-    } else if (billing.type === "included") {
-      return <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">Included in {billing.requiredTier}</Badge>;
-    } else {
-      return <Badge variant="outline" className="bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300">Upgrade to {billing.requiredTier}</Badge>;
+  const getAddonStatus = (addon: any) => {
+    if (!addon.entitlement) {
+      return "not_enabled";
     }
+    if (addon.entitlement.status === "active") {
+      return "active";
+    }
+    if (addon.entitlement.status === "trialing") {
+      if (addon.entitlement.trialEnd && Date.now() > addon.entitlement.trialEnd) {
+        return "trial_expired";
+      }
+      return "trialing";
+    }
+    if (addon.entitlement.status === "expired") {
+      return "expired";
+    }
+    return "not_enabled";
+  };
+
+  const getDaysUntilTrialEnd = (trialEnd?: number) => {
+    if (!trialEnd) return null;
+    const days = Math.ceil((trialEnd - Date.now()) / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
   };
 
   return (
@@ -106,7 +155,7 @@ export default function AddOnsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Add-ons & Modules</h1>
           <p className="text-muted-foreground">
-            Enhance your financial app with optional modules. Enable or disable features as needed.
+            Enhance your financial app with optional add-ons. Enable free add-ons, start trials, or purchase lifetime unlocks.
           </p>
         </div>
 
@@ -116,15 +165,26 @@ export default function AddOnsPage() {
               <p className="text-muted-foreground">Please select an organization to manage add-ons.</p>
             </CardContent>
           </Card>
+        ) : addons === undefined ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p className="text-muted-foreground">Loading add-ons...</p>
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {allModules.map((module) => {
-              const Icon = getModuleIcon(module.id);
-              const status = getModuleStatus(module.id);
-              const isLocked = module.billing.type === "paid" && !status.enabled;
+            {addons.map((addon: EnrichedAddon) => {
+              const Icon = getAddonIcon(addon.uiPlacement?.icon);
+              const status = getAddonStatus(addon);
+              const daysLeft = getDaysUntilTrialEnd(addon.entitlement?.trialEnd);
+
+              // Get pricing info
+              const basePrice = addon.priceAmount ? formatPrice(addon.priceAmount, addon.priceCurrency) : null;
+              const hasDiscount = addon.campaigns && addon.campaigns.length > 0;
 
               return (
-                <Card key={module.id} className={isLocked ? "opacity-75" : ""}>
+                <Card key={addon._id} className={status === "expired" || status === "trial_expired" ? "opacity-75" : ""}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
@@ -132,48 +192,173 @@ export default function AddOnsPage() {
                           <Icon className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                          <CardTitle className="text-lg">{module.name}</CardTitle>
-                          {getBillingBadge(module.billing)}
+                          <CardTitle className="text-lg">{addon.name}</CardTitle>
+                          <div className="flex gap-2 mt-1">
+                            {addon.isFree ? (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">
+                                Free
+                              </Badge>
+                            ) : (
+                              <>
+                                {basePrice && (
+                                  <Badge variant="outline">
+                                    {hasDiscount && addon.campaigns?.[0] ? (
+                                      <>
+                                        <span className="line-through text-muted-foreground mr-1">{basePrice}</span>
+                                        {addon.campaigns[0].discountType === "percentage" ? (
+                                          `${addon.campaigns[0].discountValue}% off`
+                                        ) : (
+                                          formatPrice(addon.priceAmount! - addon.campaigns[0].discountValue, addon.priceCurrency)
+                                        )}
+                                      </>
+                                    ) : (
+                                      `One-time • ${basePrice}`
+                                    )}
+                                  </Badge>
+                                )}
+                              </>
+                            )}
+                            {status === "active" && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                Active
+                              </Badge>
+                            )}
+                            {status === "trialing" && daysLeft !== null && (
+                              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300">
+                                Trial • {daysLeft} days left
+                              </Badge>
+                            )}
+                            {status === "trial_expired" && (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
+                                Trial Ended
+                              </Badge>
+                            )}
+                            {addon.entitlement?.lastPaymentStatus === "requires_payment_method" && (
+                              <Badge variant="outline" className="bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300">
+                                Payment Failed
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      {status.enabled && (
+                      {status === "active" && (
                         <CheckCircle2 className="w-5 h-5 text-green-600" />
                       )}
                     </div>
                     <CardDescription className="mt-2">
-                      {module.description}
+                      {addon.shortDescription}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {status.enabled ? "Enabled" : "Disabled"}
-                        </span>
+                    <div className="space-y-4">
+                      {/* Action buttons */}
+                      <div className="flex flex-col gap-2">
+                        {status === "not_enabled" && addon.isFree && (
+                          <Button
+                            onClick={() => handleEnableFree(addon._id)}
+                            disabled={loadingAction === addon._id || !canManageModules}
+                            className="w-full"
+                          >
+                            {loadingAction === addon._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            ) : null}
+                            Enable
+                          </Button>
+                        )}
+                        {status === "not_enabled" && !addon.isFree && !addon.supportsTrial && (
+                          <Button
+                            onClick={() => handlePurchase(addon._id)}
+                            disabled={loadingAction === addon._id}
+                            className="w-full"
+                          >
+                            {loadingAction === addon._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            ) : null}
+                            Buy Now {basePrice && `• ${basePrice}`}
+                          </Button>
+                        )}
+                        {status === "not_enabled" && !addon.isFree && addon.supportsTrial && (
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => handleStartTrial(addon._id)}
+                              disabled={loadingAction === addon._id || !canManageModules}
+                              variant="outline"
+                              className="flex-1"
+                            >
+                              {loadingAction === addon._id ? (
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              ) : null}
+                              Start Free Trial
+                            </Button>
+                            <Button
+                              onClick={() => handlePurchase(addon._id)}
+                              disabled={loadingAction === addon._id}
+                              className="flex-1"
+                            >
+                              {loadingAction === addon._id ? (
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              ) : null}
+                              Buy {basePrice && `• ${basePrice}`}
+                            </Button>
+                          </div>
+                        )}
+                        {status === "trialing" && (
+                          <Button
+                            onClick={() => handlePurchase(addon._id, "trial")}
+                            disabled={loadingAction === addon._id}
+                            className="w-full"
+                          >
+                            {loadingAction === addon._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            ) : null}
+                            Buy to Keep {basePrice && `• ${basePrice}`}
+                          </Button>
+                        )}
+                        {status === "trial_expired" && (
+                          <Button
+                            onClick={() => handlePurchase(addon._id)}
+                            disabled={loadingAction === addon._id}
+                            className="w-full"
+                          >
+                            {loadingAction === addon._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            ) : null}
+                            Buy to Continue {basePrice && `• ${basePrice}`}
+                          </Button>
+                        )}
+                        {addon.entitlement?.lastPaymentStatus === "requires_payment_method" && (
+                          <Button
+                            onClick={() => handlePurchase(addon._id)}
+                            disabled={loadingAction === addon._id}
+                            variant="outline"
+                            className="w-full"
+                          >
+                            {loadingAction === addon._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 mr-2" />
+                            )}
+                            Retry Payment
+                          </Button>
+                        )}
+                        {status === "active" && canManageModules && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Enabled</span>
+                            <Switch checked={true} disabled />
+                          </div>
+                        )}
                       </div>
-                      {canManageModules ? (
-                        <div className="flex items-center gap-2">
-                          {loadingModule === module.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Switch
-                              checked={status.enabled}
-                              onCheckedChange={() => handleToggleModule(module.id, status.enabled)}
-                              disabled={loadingModule !== null}
-                            />
+
+                      {/* Additional info */}
+                      <div className="pt-4 border-t">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Version {addon.version}</span>
+                          {addon.entitlement?.purchasedAt && (
+                            <span>Purchased {new Date(addon.entitlement.purchasedAt).toLocaleDateString()}</span>
                           )}
                         </div>
-                      ) : (
-                        <Lock className="w-4 h-4 text-muted-foreground" />
-                      )}
-                    </div>
-                    {module.metadata && (
-                      <div className="mt-4 pt-4 border-t">
-                        <p className="text-xs text-muted-foreground">
-                          Version {module.version}
-                        </p>
                       </div>
-                    )}
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -186,4 +371,3 @@ export default function AddOnsPage() {
     </div>
   );
 }
-

@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from "react";
-import type { Id } from "convex/_generated/dataModel";
+import type { Id } from "@convex/_generated/dataModel";
 import type { TransactionType } from "../types";
 
 export interface ReceiptData {

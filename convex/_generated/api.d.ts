@@ -9,6 +9,8 @@
  */
 
 import type * as accounts from "../accounts.js";
+import type * as addonTemplates from "../addonTemplates.js";
+import type * as addons from "../addons.js";
 import type * as addresses from "../addresses.js";
 import type * as ai_entries from "../ai_entries.js";
 import type * as ai_entries_actions from "../ai_entries/actions.js";
@@ -45,6 +47,7 @@ import type * as migrations_enable_modules from "../migrations/enable_modules.js
 import type * as migrations_phase1_multi_tenant from "../migrations/phase1_multi_tenant.js";
 import type * as mock_data from "../mock_data.js";
 import type * as moduleEntitlements from "../moduleEntitlements.js";
+import type * as moduleManifests from "../moduleManifests.js";
 import type * as modules from "../modules.js";
 import type * as modules_reports_accountsPayable from "../modules/reports/accountsPayable.js";
 import type * as modules_reports_accountsReceivable from "../modules/reports/accountsReceivable.js";
@@ -86,6 +89,7 @@ import type * as plaid_link from "../plaid/link.js";
 import type * as plaid_mock from "../plaid/mock.js";
 import type * as plaid_sdk from "../plaid/sdk.js";
 import type * as plaid_transactions from "../plaid/transactions.js";
+import type * as pricingCampaigns from "../pricingCampaigns.js";
 import type * as professionalContacts from "../professionalContacts.js";
 import type * as rbac from "../rbac.js";
 import type * as receipt_ocr from "../receipt_ocr.js";
@@ -124,6 +128,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
+  addonTemplates: typeof addonTemplates;
+  addons: typeof addons;
   addresses: typeof addresses;
   ai_entries: typeof ai_entries;
   "ai_entries/actions": typeof ai_entries_actions;
@@ -160,6 +166,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/phase1_multi_tenant": typeof migrations_phase1_multi_tenant;
   mock_data: typeof mock_data;
   moduleEntitlements: typeof moduleEntitlements;
+  moduleManifests: typeof moduleManifests;
   modules: typeof modules;
   "modules/reports/accountsPayable": typeof modules_reports_accountsPayable;
   "modules/reports/accountsReceivable": typeof modules_reports_accountsReceivable;
@@ -201,6 +208,7 @@ declare const fullApi: ApiFromModules<{
   "plaid/mock": typeof plaid_mock;
   "plaid/sdk": typeof plaid_sdk;
   "plaid/transactions": typeof plaid_transactions;
+  pricingCampaigns: typeof pricingCampaigns;
   professionalContacts: typeof professionalContacts;
   rbac: typeof rbac;
   receipt_ocr: typeof receipt_ocr;

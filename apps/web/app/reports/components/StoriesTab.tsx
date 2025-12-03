@@ -7,7 +7,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useToast } from "@/components/ui/hooks/use-toast";
 import { StoryCard } from "./StoryCard";
 import { StoryView } from "./StoryView";

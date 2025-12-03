@@ -24,7 +24,9 @@ class ModuleRegistry {
 
     // Check for duplicate IDs
     if (this.modules.has(manifest.id)) {
-      console.warn(`Module ${manifest.id} is already registered. Overwriting...`);
+      if (process.env.NODE_ENV === "development") {
+        console.warn(`Module ${manifest.id} is already registered. Overwriting...`);
+      }
     }
 
     this.modules.set(manifest.id, manifest);
@@ -76,7 +78,7 @@ class ModuleRegistry {
     enablements: ModuleEnablement[]
   ): ModuleAccessResult {
     const enablement = enablements.find(e => e.moduleId === moduleId);
-    
+
     if (!enablement) {
       return { hasAccess: false, reason: "Module not enabled for organization" };
     }
@@ -131,7 +133,7 @@ class ModuleRegistry {
    */
   getDependentModules(moduleId: ModuleId): ModuleId[] {
     return this.getAllModules()
-      .filter(m => 
+      .filter(m =>
         m.dependencies?.some(dep => dep.moduleId === moduleId)
       )
       .map(m => m.id);

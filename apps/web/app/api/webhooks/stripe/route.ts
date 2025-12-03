@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import Stripe from "stripe";
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -54,18 +54,38 @@ export async function POST(req: NextRequest) {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.client_reference_id || session.metadata?.userId;
-      const plan = session.metadata?.plan as "light" | "pro";
-      const billingPeriod = session.metadata?.billingPeriod as "monthly" | "annual";
+      
+      // Check if this is an add-on purchase
+      if (session.metadata?.addonId) {
+        const orgId = session.metadata.orgId;
+        const addonId = session.metadata.addonId;
+        const promotionId = session.metadata.promotionId || undefined;
+        const paymentIntentId = session.payment_intent as string;
 
-      if (userId && plan) {
-        // Update user subscription in Convex
-        await convex.mutation(api.subscriptions.updateSubscription, {
-          tier: plan,
-          billingPeriod,
-          subscriptionStatus: "trial", // Starts as trial
-          trialEndsAt: Date.now() + 14 * 24 * 60 * 60 * 1000, // 14 days from now
-        });
+        if (orgId && addonId) {
+          await convex.mutation(api.addons.activateAddonPurchase, {
+            orgId: orgId as any,
+            addonId: addonId as any,
+            promotionId: promotionId ? (promotionId as any) : undefined,
+            checkoutSessionId: session.id,
+            paymentIntentId: paymentIntentId || "",
+          });
+        }
+      } else {
+        // Handle subscription checkout
+        const userId = session.client_reference_id || session.metadata?.userId;
+        const plan = session.metadata?.plan as "light" | "pro";
+        const billingPeriod = session.metadata?.billingPeriod as "monthly" | "annual";
+
+        if (userId && plan) {
+          // Update user subscription in Convex
+          await convex.mutation(api.subscriptions.updateSubscription, {
+            tier: plan,
+            billingPeriod,
+            subscriptionStatus: "trial", // Starts as trial
+            trialEndsAt: Date.now() + 14 * 24 * 60 * 60 * 1000, // 14 days from now
+          });
+        }
       }
       break;
     }
@@ -161,6 +181,38 @@ export async function POST(req: NextRequest) {
             tier: subscription.metadata?.plan as "light" | "pro",
             subscriptionStatus: "past_due",
           });
+        }
+      }
+      break;
+    }
+
+    case "payment_intent.payment_failed": {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      
+      // For add-on purchases, metadata is on the checkout session, not payment intent
+      // We need to retrieve the checkout session from the payment intent
+      if (paymentIntent.metadata?.checkout_session_id) {
+        try {
+          const session = await stripe.checkout.sessions.retrieve(
+            paymentIntent.metadata.checkout_session_id as string
+          );
+          
+          if (session.metadata?.addonId) {
+            const orgId = session.metadata.orgId;
+            const addonId = session.metadata.addonId;
+            const failureReason = paymentIntent.last_payment_error?.message;
+
+            if (orgId && addonId) {
+              await convex.mutation(api.addons.handlePaymentFailure, {
+                orgId: orgId as any,
+                addonId: addonId as any,
+                paymentIntentId: paymentIntent.id,
+                failureReason: failureReason || undefined,
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error retrieving checkout session:", error);
         }
       }
       break;

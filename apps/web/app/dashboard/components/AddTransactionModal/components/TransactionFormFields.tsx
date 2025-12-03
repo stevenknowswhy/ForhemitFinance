@@ -397,8 +397,8 @@ export function TransactionFormFields({
             onChange={setCategory}
             onAIClick={showAIButton && canUseAI ? () => handleManualAITrigger() : undefined}
             isAILoading={isAILoading}
-            aiSuggestedCategory={aiSuggestedCategory}
-            aiConfidence={aiCategoryConfidence}
+            aiSuggestedCategory={aiSuggestedCategory ?? undefined}
+            aiConfidence={aiCategoryConfidence ?? undefined}
             isNewCategory={aiSuggestions?.some(s => s.category === category && s.isNewCategory) || false}
             showAIButton={showAIButton}
             disabled={!canUseAI && showAIButton}

@@ -5,8 +5,8 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useAction } from "convex/react";
-import { api } from "convex/_generated/api";
-import type { Id } from "convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { useOrgIdOptional } from "../../../../hooks/useOrgId";
 import { useLineItems } from "./useLineItems";
 import { useTransactionValidation } from "./useTransactionValidation";
@@ -75,7 +75,7 @@ export interface UseTransactionModalOrchestrationReturn {
     disableItemization: () => void;
     setLineItems: React.Dispatch<React.SetStateAction<any[]>>;
     setShowItemization: (show: boolean) => void;
-    handleItemizationToggle: (value: boolean) => void;
+
 
   // Validation
   errors: any;
@@ -129,6 +129,7 @@ export interface UseTransactionModalOrchestrationReturn {
 
   // Split transaction
   showSplitPrompt: boolean;
+  setShowSplitPrompt: (show: boolean) => void;
   splitSuggestions: any[] | null;
   setSplitSuggestions: (suggestions: any[] | null) => void;
   isLoadingSplit: boolean;
@@ -532,8 +533,8 @@ export function useTransactionModalOrchestration({
     setAutoPopulated,
     autoPopulatedFromReceipt,
     setAutoPopulatedFromReceipt,
-    showSplitPrompt,
-    setShowSplitPrompt,
+    showSplitPrompt: splitHook.showSplitPrompt,
+    setShowSplitPrompt: splitHook.setShowSplitPrompt,
     splitSuggestions,
     setSplitSuggestions,
     duplicateDismissed,

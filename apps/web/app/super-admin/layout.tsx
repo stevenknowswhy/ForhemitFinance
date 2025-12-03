@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { Loader2, LayoutDashboard, Building2, Users } from "lucide-react";

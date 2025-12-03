@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -21,12 +21,15 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FilterPills, FilterType } from "../components/FilterPills";
 import { ApprovalQueue } from "./components/ApprovalQueue";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  Activity
+  Activity,
+  Store
 } from "lucide-react";
+import Link from "next/link";
 
 function DashboardContent() {
   const { user, isLoaded } = useUser();
@@ -188,6 +191,25 @@ function DashboardContent() {
             loading={!analytics}
           />
         </div>
+
+        {/* Marketplace Card */}
+        <Link href="/add-ons" className="block">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer border-primary/20 hover:border-primary/40">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Store className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <CardTitle className="text-xl">Marketplace</CardTitle>
+                  <CardDescription>
+                    Discover and enable add-ons to enhance your financial management
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
 
         {/* Pending Approvals Section */}
         <div className="space-y-4">

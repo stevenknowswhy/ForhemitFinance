@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { X, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { EditEntryModalProps } from "../types";
 
 export function EditEntryModal({ entry, accounts, onSave, onClose }: EditEntryModalProps) {

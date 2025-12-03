@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { Check, ChevronDown, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CategoryIcon, getCategoryIcon } from "./CategoryIcon";

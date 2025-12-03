@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useState, useCallback } from "react";
 import { useOrgId } from "../../hooks/useOrgId";
 import { CheckCheck, Loader2, AlertCircle, RefreshCw, Filter, ArrowUpDown, Search } from "lucide-react";

@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -25,7 +25,7 @@ import { TransactionList } from "./components/TransactionList";
 import { Pagination } from "./components/Pagination";
 import { EditTransactionModal } from "./components/EditTransactionModal";
 import { DeleteConfirmModal } from "./components/DeleteConfirmModal";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 export default function TransactionsPage() {
   const { user, isLoaded } = useUser();

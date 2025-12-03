@@ -2,7 +2,7 @@
  * Type definitions for ApprovalQueue
  */
 
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 export type SortField = "date" | "amount" | "confidence" | "account";
 export type SortOrder = "asc" | "desc";

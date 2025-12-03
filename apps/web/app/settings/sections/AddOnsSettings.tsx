@@ -15,25 +15,17 @@ import { Badge } from "@/components/ui/badge";
 import { BookOpen, FileText, Loader2, CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
 import { useState } from "react";
 
-const KNOWN_MODULES = [
-  {
-    id: "stories",
-    name: "AI Stories",
-    description: "Generate AI-powered narrative stories from your financial data",
-    icon: BookOpen,
-  },
-  {
-    id: "reports",
-    name: "Financial Reports",
-    description: "Generate comprehensive financial reports",
-    icon: FileText,
-  },
-];
+// Map icon names to components
+const iconMap: { [key: string]: React.ElementType } = {
+  BookOpen,
+  FileText,
+  Sparkles,
+};
 
 export function AddOnsSettings() {
   const router = useRouter();
   const { currentOrgId, userRole } = useOrg();
-  const { enabledModules, enableModule, disableModule } = useModuleContext();
+  const { moduleStatuses, enableModule, disableModule } = useModuleContext();
   const [loadingModule, setLoadingModule] = useState<string | null>(null);
 
   const canManageModules = userRole === "ORG_OWNER" || userRole === "ORG_ADMIN";
@@ -57,17 +49,8 @@ export function AddOnsSettings() {
     }
   };
 
-  const getModuleStatus = (moduleId: string) => {
-    const enablement = enabledModules.modules.find(m => m.moduleId === moduleId);
-    return {
-      enabled: enablement?.enabled ?? false,
-      isLoading: enabledModules.isLoading,
-    };
-  };
-
-  const getModuleIcon = (moduleId: string) => {
-    const module = KNOWN_MODULES.find(m => m.id === moduleId);
-    return module?.icon || Sparkles;
+  const getModuleIcon = (iconName: string) => {
+    return iconMap[iconName] || Sparkles;
   };
 
   if (!currentOrgId) {
@@ -98,59 +81,68 @@ export function AddOnsSettings() {
       </div>
 
       <div className="space-y-3">
-        {KNOWN_MODULES.map((module) => {
-          const Icon = getModuleIcon(module.id);
-          const status = getModuleStatus(module.id);
+        {moduleStatuses.isLoading ? (
+          <Card>
+            <CardContent className="p-4 text-center">
+              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground">Loading modules...</p>
+            </CardContent>
+          </Card>
+        ) : (
+          moduleStatuses.modules.map((moduleStatus) => {
+            const { manifest, isOrgEnabled } = moduleStatus;
+            const Icon = getModuleIcon(manifest.icon);
 
-          return (
-            <Card key={module.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Icon className="w-5 h-5 text-primary" />
+            return (
+              <Card key={manifest.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Icon className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">{manifest.name}</CardTitle>
+                        <CardDescription className="text-xs mt-1">
+                          {manifest.description}
+                        </CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-base">{module.name}</CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {module.description}
-                      </CardDescription>
-                    </div>
+                    {isOrgEnabled && (
+                      <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                    )}
                   </div>
-                  {status.enabled && (
-                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant={status.enabled ? "default" : "secondary"}>
-                      {status.enabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                  </div>
-                  {canManageModules ? (
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {loadingModule === module.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Switch
-                          checked={status.enabled}
-                          onCheckedChange={() => handleToggleModule(module.id, status.enabled)}
-                          disabled={loadingModule !== null}
-                        />
-                      )}
+                      <Badge variant={isOrgEnabled ? "default" : "secondary"}>
+                        {isOrgEnabled ? "Enabled" : "Disabled"}
+                      </Badge>
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Requires admin access
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                    {canManageModules ? (
+                      <div className="flex items-center gap-2">
+                        {loadingModule === manifest.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Switch
+                            checked={isOrgEnabled}
+                            onCheckedChange={() => handleToggleModule(manifest.id, isOrgEnabled)}
+                            disabled={loadingModule !== null}
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Requires admin access
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
 
       {!canManageModules && (

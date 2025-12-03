@@ -29,7 +29,7 @@
       "@tests/*": [
         "../../tests/*"
       ],
-      "convex/*": [
+      "@convex/*": [
         "../../convex/*"
       ]
     }
@@ -41,11 +41,10 @@
     ".next/types/**/*.ts",
     "types/**/*.d.ts",
     "../../tests/**/*.ts",
-    "../../tests/**/*.tsx"
+    "../../tests/**/*.tsx",
+    "../../convex/_generated/*.d.ts"
   ],
   "exclude": [
-    "node_modules",
-    "../../convex/**/*",
-    "../../tests/**/*"
+    "node_modules"
   ]
 }

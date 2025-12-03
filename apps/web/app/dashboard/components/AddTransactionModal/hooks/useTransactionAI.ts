@@ -18,9 +18,9 @@ export interface UseTransactionAIReturn {
   aiModalDescription: string;
   setAiModalDescription: (description: string) => void;
   lineItemAILoading: Record<string, boolean>;
-  setLineItemAILoading: (loading: Record<string, boolean>) => void;
+  setLineItemAILoading: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   lineItemAISuggestions: Record<string, any[]>;
-  setLineItemAISuggestions: (suggestions: Record<string, any[]>) => void;
+  setLineItemAISuggestions: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
   aiSuggestedCategory: string | undefined;
   setAiSuggestedCategory: (category: string | undefined) => void;
   aiCategoryConfidence: number | undefined;

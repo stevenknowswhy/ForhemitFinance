@@ -4,7 +4,7 @@
  */
 
 import { ModuleNavigationItem } from "../../../modules/core/types";
-import { Home, Receipt, BarChart3, FileText, Settings, BookOpen } from "lucide-react";
+import { Home, Receipt, BarChart3, FileText, Settings, Store } from "lucide-react";
 
 // Core navigation items (always shown)
 export const CORE_NAV_ITEMS = [
@@ -30,6 +30,20 @@ export const CORE_NAV_ITEMS = [
     order: 2,
   },
   {
+    id: "reports",
+    href: "/reports",
+    label: "Insights",
+    icon: FileText,
+    order: 3,
+  },
+  {
+    id: "marketplace",
+    href: "/add-ons",
+    label: "Marketplace",
+    icon: Store,
+    order: 4,
+  },
+  {
     id: "settings",
     href: "/settings",
     label: "Settings",
@@ -40,37 +54,31 @@ export const CORE_NAV_ITEMS = [
 
 /**
  * Get navigation items from enabled modules
- * For now, we hardcode known modules. In the future, this could fetch from a backend endpoint
+ * Note: Stories is no longer a top-level nav item - it appears in Insights sidebar when enabled
+ * Only modules that should appear in top-level nav should be added here
  */
 export function getModuleNavigationItems(enabledModuleIds: string[]): ModuleNavigationItem[] {
   const moduleNavItems: ModuleNavigationItem[] = [];
 
-  // Stories module navigation
-  if (enabledModuleIds.includes("stories")) {
-    moduleNavItems.push({
-      id: "stories",
-      label: "Stories",
-      href: "/stories",
-      icon: BookOpen,
-      order: 4,
-    });
-  }
-
-  // Reports module navigation (if not already in core)
-  // Reports is already in core nav, so we don't add it again
-  // But if it's disabled, we could remove it (handled elsewhere)
+  // Stories module is now integrated into Insights sidebar, not top-level nav
+  // Reports module is already in core nav (as "Insights")
+  // Add other modules here if they need top-level navigation
 
   return moduleNavItems;
 }
 
 /**
  * Get all navigation items (core + modules)
+ * Insights is always shown, regardless of module enablement
  */
 export function getAllNavigationItems(enabledModuleIds: string[]) {
   const coreItems = CORE_NAV_ITEMS.map(item => ({
     ...item,
     icon: item.icon,
   }));
+
+  // Always show all core items (including Insights)
+  // Insights is always available, even if no modules are enabled
 
   const moduleItems = getModuleNavigationItems(enabledModuleIds);
 

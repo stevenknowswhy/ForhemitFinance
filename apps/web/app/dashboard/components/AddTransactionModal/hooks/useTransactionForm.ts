@@ -49,7 +49,7 @@ export interface UseTransactionFormReturn {
   setFrequentlyItemizes: (value: boolean) => void;
   
   // Derived values
-  entryMode: "simple" | "advanced";
+  entryMode: "simple" | "itemized";
   hasValidTitle: boolean;
 }
 
@@ -90,7 +90,7 @@ export function useTransactionForm(
   const [frequentlyItemizes, setFrequentlyItemizes] = useState(false);
   
   // Legacy entryMode for backward compatibility
-  const entryMode = showItemization ? "advanced" : "simple";
+  const entryMode = showItemization ? "itemized" : "simple";
   
   // Derived values
   const hasValidTitle = useMemo(() => isTitleLongEnough(title), [title]);

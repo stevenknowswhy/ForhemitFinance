@@ -7,7 +7,7 @@
 import { Edit2, Trash2, Receipt, Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTransactionDate } from "@/lib/dateUtils";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 interface TransactionListProps {
   transactions: any[];

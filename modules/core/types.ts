@@ -54,6 +54,28 @@ export interface ModuleNavigationItem {
 }
 
 /**
+ * Insights sidebar item definition
+ */
+export interface InsightsSidebarItem {
+  id: string;
+  label: string;
+  icon?: string; // Icon name as string (e.g., "BookOpen", "FileText")
+  href?: string; // Optional href for direct navigation
+  subSections?: Array<{
+    id: string;
+    label: string;
+    icon?: string;
+  }>;
+}
+
+/**
+ * Insights navigation configuration for modules
+ */
+export interface InsightsNavigation {
+  sidebarItems: InsightsSidebarItem[];
+}
+
+/**
  * Module dependency
  */
 export interface ModuleDependency {
@@ -87,6 +109,9 @@ export interface ModuleManifest {
   
   // Navigation
   navigation?: ModuleNavigationItem[];
+  
+  // Insights navigation (for modules that contribute to Insights tab)
+  insightsNavigation?: InsightsNavigation;
   
   // Billing
   billing: ModuleBilling;

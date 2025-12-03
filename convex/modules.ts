@@ -10,6 +10,15 @@ import { requirePermission } from "./rbac";
 import { getOrgContext } from "./helpers/orgContext";
 import { planIncludesModule, isModulePaid, getModulesToEnableOnUpgrade, getModulesToDisableOnDowngrade } from "./moduleEntitlements";
 import { api } from "./_generated/api";
+import { getAllModuleManifests } from "./moduleManifests";
+
+/**
+ * Get a module manifest by ID (for use in Convex)
+ */
+function getModuleManifest(moduleId: string) {
+  const allManifests = getAllModuleManifests();
+  return allManifests.find(m => m.id === moduleId);
+}
 
 /**
  * Get all enabled modules for an organization
@@ -55,6 +64,124 @@ export const getEnabledModules = query({
 });
 
 /**
+ * Get all modules with their enablement status for an organization
+ * Returns all registered modules with their current enablement and entitlement status
+ */
+export const getOrgModuleStatus = query({
+  args: {
+    orgId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .first();
+
+    if (!user) throw new Error("User not found");
+
+    // Check if user is member of org
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_org", (q) => q.eq("userId", user._id).eq("orgId", args.orgId))
+      .first();
+
+    if (!membership) throw new Error("Not a member of this organization");
+
+    // Get all registered modules
+    const allRegisteredModules = getAllModuleManifests();
+
+    // Get all enablements for this org
+    const enablements = await ctx.db
+      .query("module_enablements")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+
+    // Get subscription to check entitlements
+    const subscription = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .first();
+    const plan = subscription ? await ctx.db.get(subscription.planId) : null;
+    const tier = plan?.name as "solo" | "light" | "pro" | undefined;
+
+    // Get all entitlements
+    const entitlements = await ctx.db
+      .query("module_entitlements")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+
+    // Log any dangling enablements (enablements for modules not in manifest list)
+    // This helps debug misconfigurations
+    const registeredModuleIds = new Set(allRegisteredModules.map(m => m.id));
+    const danglingEnablements = enablements.filter(e => 
+      e.enabled && !registeredModuleIds.has(e.moduleId)
+    );
+    if (danglingEnablements.length > 0 && process.env.NODE_ENV === "development") {
+      console.warn(
+        `Found ${danglingEnablements.length} enabled module(s) without manifests:`,
+        danglingEnablements.map(e => e.moduleId).join(", ")
+      );
+    }
+
+    return allRegisteredModules.map((manifest) => {
+      const enablement = enablements.find((e) => e.moduleId === manifest.id);
+      const isOrgEnabled = enablement?.enabled ?? false;
+
+      // Check user-level override
+      const userOverride = enablement?.userOverrides?.find(
+        (override) => override.userId === user._id
+      );
+      // If user has an explicit override, use it; otherwise default to org setting
+      const isUserEnabled = userOverride !== undefined 
+        ? userOverride.enabled 
+        : isOrgEnabled;
+
+      // Check entitlement based on plan
+      // Default to true for free modules or when billing info is missing
+      let hasEntitlement = true;
+      if (manifest.billing) {
+        if (manifest.billing.type === "included" && tier) {
+          const requiredTier = manifest.billing.requiredTier;
+          const tierOrder = { solo: 0, light: 1, pro: 2 };
+          hasEntitlement = tierOrder[tier] >= tierOrder[requiredTier];
+        } else if (manifest.billing.type === "paid") {
+          const entitlement = entitlements.find((e) => e.moduleId === manifest.id);
+          hasEntitlement = entitlement?.status === "active" || entitlement?.status === "trial";
+        } else if (manifest.billing.type === "free") {
+          // Free modules always have entitlement
+          hasEntitlement = true;
+        }
+      }
+
+      return {
+        manifest: {
+          id: manifest.id,
+          version: manifest.version,
+          name: manifest.name,
+          description: manifest.description,
+          icon: typeof manifest.icon === "string" ? manifest.icon : manifest.icon?.name || "FileText",
+          category: manifest.category,
+          billing: manifest.billing,
+          permissions: manifest.permissions,
+          routes: manifest.routes,
+          navigation: manifest.navigation,
+          insightsNavigation: manifest.insightsNavigation,
+          featureFlags: manifest.featureFlags,
+          metadata: manifest.metadata,
+        },
+        isOrgEnabled,
+        isUserEnabled,
+        hasEntitlement,
+        userOverride: userOverride?.enabled,
+      };
+    });
+  },
+});
+
+/**
  * Get module enablement status for a specific module
  */
 export const getModuleEnablement = query({
@@ -83,7 +210,7 @@ export const getModuleEnablement = query({
 
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) => 
+      .withIndex("by_org_module", (q) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -128,7 +255,7 @@ export const checkModuleAccess = query({
     // Get module enablement
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) => 
+      .withIndex("by_org_module", (q) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -168,13 +295,23 @@ export const enableModule = mutation({
     metadata: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    const { user } = await getOrgContext(ctx, args.orgId);
-    
+    const { userId } = await getOrgContext(ctx, args.orgId);
+
     // Require MANAGE_MODULES permission
-    await requirePermission(ctx, user._id, args.orgId, "MANAGE_MODULES");
+    await requirePermission(ctx, userId, args.orgId, "MANAGE_MODULES");
+
+    // Validate that the module has a known manifest before enabling
+    const manifest = getModuleManifest(args.moduleId);
+    if (!manifest) {
+      throw new Error(`Unknown module: ${args.moduleId}. Module must be registered in the system before it can be enabled.`);
+    }
 
     // Check if module requires paid subscription
-    if (isModulePaid(args.moduleId)) {
+    // First check the manifest to see if it's actually a free module
+    const isFreeModule = manifest.billing?.type === "free";
+
+    // Only check subscription if module is not free
+    if (!isFreeModule && isModulePaid(args.moduleId)) {
       // Get organization's subscription
       const subscription = await ctx.db
         .query("subscriptions")
@@ -185,6 +322,10 @@ export const enableModule = mutation({
         throw new Error("Subscription required for this module");
       }
 
+      if (!subscription.planId) {
+        throw new Error("Subscription plan not configured");
+      }
+
       const plan = await ctx.db.get(subscription.planId);
       if (!plan) {
         throw new Error("Plan not found");
@@ -192,7 +333,7 @@ export const enableModule = mutation({
 
       // Map plan name to tier (assuming plan names match tiers)
       const tier = plan.name as "solo" | "light" | "pro";
-      
+
       // Check if plan includes this module
       if (!planIncludesModule(tier, args.moduleId)) {
         throw new Error(`This module requires a ${args.moduleId === "stories" ? "Light" : "Pro"} plan or higher`);
@@ -201,7 +342,7 @@ export const enableModule = mutation({
       // Create or update entitlement
       const existingEntitlement = await ctx.db
         .query("module_entitlements")
-        .withIndex("by_org_module", (q) => 
+        .withIndex("by_org_module", (q) =>
           q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
         )
         .first();
@@ -229,7 +370,7 @@ export const enableModule = mutation({
     // Check if enablement already exists
     const existing = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) => 
+      .withIndex("by_org_module", (q) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -238,7 +379,7 @@ export const enableModule = mutation({
       // Update existing enablement
       await ctx.db.patch(existing._id, {
         enabled: true,
-        enabledBy: user._id,
+        enabledBy: userId,
         enabledAt: Date.now(),
         metadata: args.metadata,
         updatedAt: Date.now(),
@@ -250,7 +391,7 @@ export const enableModule = mutation({
         orgId: args.orgId,
         moduleId: args.moduleId,
         enabled: true,
-        enabledBy: user._id,
+        enabledBy: userId,
         enabledAt: Date.now(),
         metadata: args.metadata,
         updatedAt: Date.now(),
@@ -269,14 +410,14 @@ export const disableModule = mutation({
     moduleId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { user } = await getOrgContext(ctx, args.orgId);
-    
+    const { userId } = await getOrgContext(ctx, args.orgId);
+
     // Require MANAGE_MODULES permission
-    await requirePermission(ctx, user._id, args.orgId, "MANAGE_MODULES");
+    await requirePermission(ctx, userId, args.orgId, "MANAGE_MODULES");
 
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) => 
+      .withIndex("by_org_module", (q) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -323,7 +464,7 @@ export const getModuleEntitlement = query({
 
     const entitlement = await ctx.db
       .query("module_entitlements")
-      .withIndex("by_org_module", (q) => 
+      .withIndex("by_org_module", (q) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -371,7 +512,7 @@ export const setUserModuleOverride = mutation({
     // Get or create enablement
     let enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) => 
+      .withIndex("by_org_module", (q) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -383,7 +524,7 @@ export const setUserModuleOverride = mutation({
     // Update user overrides
     const userOverrides = enablement.userOverrides || [];
     const existingIndex = userOverrides.findIndex(uo => uo.userId === args.userId);
-    
+
     if (existingIndex >= 0) {
       userOverrides[existingIndex] = {
         userId: args.userId,
@@ -428,7 +569,7 @@ export const checkModuleEntitlement = query({
     // Check enablement
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) => 
+      .withIndex("by_org_module", (q) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -444,7 +585,7 @@ export const checkModuleEntitlement = query({
     // Check entitlement (for paid modules)
     const entitlement = await ctx.db
       .query("module_entitlements")
-      .withIndex("by_org_module", (q) => 
+      .withIndex("by_org_module", (q) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -502,114 +643,114 @@ async function syncModuleEntitlementsHandler(ctx: any, args: {
   subscriptionStatus: "active" | "trialing" | "past_due" | "canceled" | "suspended";
   trialEndsAt?: number;
 }) {
-    // Get org owner for enablement tracking
-    const owner = await ctx.db
-      .query("memberships")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
-      .filter((q) => q.eq(q.field("role"), "ORG_OWNER"))
+  // Get org owner for enablement tracking
+  const owner = await ctx.db
+    .query("memberships")
+    .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+    .filter((q) => q.eq(q.field("role"), "ORG_OWNER"))
+    .first();
+
+  if (!owner) {
+    console.warn(`No owner found for org ${args.orgId}`);
+    return;
+  }
+
+  const oldTier = args.oldTier || "solo";
+
+  // Get modules to enable on upgrade
+  const modulesToEnable = getModulesToEnableOnUpgrade(oldTier, args.newTier);
+  for (const moduleId of modulesToEnable) {
+    // Check if enablement exists
+    let enablement = await ctx.db
+      .query("module_enablements")
+      .withIndex("by_org_module", (q) =>
+        q.eq("orgId", args.orgId).eq("moduleId", moduleId)
+      )
       .first();
 
-    if (!owner) {
-      console.warn(`No owner found for org ${args.orgId}`);
-      return;
+    if (!enablement) {
+      // Create enablement
+      await ctx.db.insert("module_enablements", {
+        orgId: args.orgId,
+        moduleId,
+        enabled: true,
+        enabledBy: owner.userId,
+        enabledAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    } else if (!enablement.enabled) {
+      // Re-enable
+      await ctx.db.patch(enablement._id, {
+        enabled: true,
+        enabledBy: owner.userId,
+        enabledAt: Date.now(),
+        updatedAt: Date.now(),
+      });
     }
 
-    const oldTier = args.oldTier || "solo";
-
-    // Get modules to enable on upgrade
-    const modulesToEnable = getModulesToEnableOnUpgrade(oldTier, args.newTier);
-    for (const moduleId of modulesToEnable) {
-      // Check if enablement exists
-      let enablement = await ctx.db
-        .query("module_enablements")
-        .withIndex("by_org_module", (q) => 
+    // Create or update entitlement for paid modules
+    if (isModulePaid(moduleId)) {
+      const existingEntitlement = await ctx.db
+        .query("module_entitlements")
+        .withIndex("by_org_module", (q) =>
           q.eq("orgId", args.orgId).eq("moduleId", moduleId)
         )
         .first();
 
-      if (!enablement) {
-        // Create enablement
-        await ctx.db.insert("module_enablements", {
+      if (existingEntitlement) {
+        await ctx.db.patch(existingEntitlement._id, {
+          planId: args.planId,
+          status: args.subscriptionStatus === "trialing" ? "trial" : "active",
+          trialEndsAt: args.trialEndsAt,
+          updatedAt: Date.now(),
+        });
+      } else {
+        await ctx.db.insert("module_entitlements", {
           orgId: args.orgId,
           moduleId,
-          enabled: true,
-          enabledBy: owner.userId,
-          enabledAt: Date.now(),
-          updatedAt: Date.now(),
-        });
-      } else if (!enablement.enabled) {
-        // Re-enable
-        await ctx.db.patch(enablement._id, {
-          enabled: true,
-          enabledBy: owner.userId,
-          enabledAt: Date.now(),
-          updatedAt: Date.now(),
-        });
-      }
-
-      // Create or update entitlement for paid modules
-      if (isModulePaid(moduleId)) {
-        const existingEntitlement = await ctx.db
-          .query("module_entitlements")
-          .withIndex("by_org_module", (q) => 
-            q.eq("orgId", args.orgId).eq("moduleId", moduleId)
-          )
-          .first();
-
-        if (existingEntitlement) {
-          await ctx.db.patch(existingEntitlement._id, {
-            planId: args.planId,
-            status: args.subscriptionStatus === "trialing" ? "trial" : "active",
-            trialEndsAt: args.trialEndsAt,
-            updatedAt: Date.now(),
-          });
-        } else {
-          await ctx.db.insert("module_entitlements", {
-            orgId: args.orgId,
-            moduleId,
-            planId: args.planId,
-            status: args.subscriptionStatus === "trialing" ? "trial" : "active",
-            trialEndsAt: args.trialEndsAt,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          });
-        }
-      }
-    }
-
-    // Get modules to disable on downgrade
-    const modulesToDisable = getModulesToDisableOnDowngrade(oldTier, args.newTier);
-    for (const moduleId of modulesToDisable) {
-      // Disable enablement (but don't delete - data remains)
-      const enablement = await ctx.db
-        .query("module_enablements")
-        .withIndex("by_org_module", (q) => 
-          q.eq("orgId", args.orgId).eq("moduleId", moduleId)
-        )
-        .first();
-
-      if (enablement && enablement.enabled) {
-        await ctx.db.patch(enablement._id, {
-          enabled: false,
-          updatedAt: Date.now(),
-        });
-      }
-
-      // Update entitlement status
-      const entitlement = await ctx.db
-        .query("module_entitlements")
-        .withIndex("by_org_module", (q) => 
-          q.eq("orgId", args.orgId).eq("moduleId", moduleId)
-        )
-        .first();
-
-      if (entitlement) {
-        await ctx.db.patch(entitlement._id, {
-          status: "cancelled",
+          planId: args.planId,
+          status: args.subscriptionStatus === "trialing" ? "trial" : "active",
+          trialEndsAt: args.trialEndsAt,
+          createdAt: Date.now(),
           updatedAt: Date.now(),
         });
       }
     }
+  }
+
+  // Get modules to disable on downgrade
+  const modulesToDisable = getModulesToDisableOnDowngrade(oldTier, args.newTier);
+  for (const moduleId of modulesToDisable) {
+    // Disable enablement (but don't delete - data remains)
+    const enablement = await ctx.db
+      .query("module_enablements")
+      .withIndex("by_org_module", (q) =>
+        q.eq("orgId", args.orgId).eq("moduleId", moduleId)
+      )
+      .first();
+
+    if (enablement && enablement.enabled) {
+      await ctx.db.patch(enablement._id, {
+        enabled: false,
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Update entitlement status
+    const entitlement = await ctx.db
+      .query("module_entitlements")
+      .withIndex("by_org_module", (q) =>
+        q.eq("orgId", args.orgId).eq("moduleId", moduleId)
+      )
+      .first();
+
+    if (entitlement) {
+      await ctx.db.patch(entitlement._id, {
+        status: "cancelled",
+        updatedAt: Date.now(),
+      });
+    }
+  }
 }
 
 /**

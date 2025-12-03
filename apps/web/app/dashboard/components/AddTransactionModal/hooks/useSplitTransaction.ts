@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { useAction } from "convex/react";
-import { api } from "convex/_generated/api";
+import { api } from "@convex/_generated/api";
 import { useToast } from "@/lib/use-toast";
 import { shouldSuggestSplit } from "../utils/formHelpers";
 import type { LineItem } from "../types";
@@ -12,6 +12,7 @@ import type { TransactionType } from "../types";
 
 export interface UseSplitTransactionReturn {
   showSplitPrompt: boolean;
+  setShowSplitPrompt: (show: boolean) => void;
   splitSuggestions: any[] | null;
   setSplitSuggestions: (suggestions: any[] | null) => void;
   isLoadingSplit: boolean;
@@ -162,6 +163,7 @@ export function useSplitTransaction(
 
   return {
     showSplitPrompt,
+    setShowSplitPrompt,
     splitSuggestions,
     setSplitSuggestions,
     isLoadingSplit,
@@ -170,4 +172,3 @@ export function useSplitTransaction(
     handleSplitSuggestion,
   };
 }
-

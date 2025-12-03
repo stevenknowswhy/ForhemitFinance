@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useOrg } from "../contexts/OrgContext";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import {
   Select,
   SelectContent,

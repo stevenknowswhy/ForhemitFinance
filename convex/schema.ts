@@ -851,5 +851,200 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_type", ["userId", "resetType"])
     .index("by_performed_at", ["performedAt"]),
+
+  // Add-ons (Micro Add-On System: Catalog)
+  addons: defineTable({
+    // Core identification
+    slug: v.string(), // Unique identifier (e.g., "investor-story-pack")
+    name: v.string(),
+    shortDescription: v.string(),
+    longDescription: v.string(),
+    
+    // Categorization
+    category: v.union(
+      v.literal("stories"),
+      v.literal("reports"),
+      v.literal("industry_pack"),
+      v.literal("stage_pack"),
+      v.literal("bundle")
+    ),
+    
+    // Pricing
+    isFree: v.boolean(),
+    supportsTrial: v.boolean(),
+    trialDurationDays: v.optional(v.number()), // e.g., 14
+    
+    // Stripe integration (nullable for free add-ons)
+    stripeProductId: v.optional(v.string()),
+    stripePriceId: v.optional(v.string()), // Base price
+    priceAmount: v.optional(v.number()), // In cents
+    priceCurrency: v.optional(v.string()), // "usd"
+    
+    // Versioning
+    version: v.string(), // Semantic versioning
+    status: v.union(
+      v.literal("draft"),
+      v.literal("active"),
+      v.literal("hidden"), // Active but not shown in marketplace
+      v.literal("deprecated")
+    ),
+    
+    // UI placement
+    uiPlacement: v.object({
+      section: v.string(), // "insights", "reports", etc.
+      label: v.string(), // Display name in UI
+      icon: v.optional(v.string()), // Icon name
+    }),
+    
+    // Configuration schema (JSON schema for Super Admin config)
+    configSchema: v.optional(v.any()),
+    
+    // Metadata
+    metadata: v.optional(v.any()), // Flexible for add-on-specific data
+    
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_status", ["status"])
+    .index("by_category", ["category"]),
+
+  // Org Add-ons (Micro Add-On System: Entitlements)
+  org_addons: defineTable({
+    orgId: v.id("organizations"),
+    addonId: v.id("addons"),
+    
+    status: v.union(
+      v.literal("trialing"),
+      v.literal("active"),
+      v.literal("expired"),
+      v.literal("revoked")
+    ),
+    
+    source: v.union(
+      v.literal("free"),
+      v.literal("paid"),
+      v.literal("promo")
+    ),
+    
+    // Trial tracking
+    trialEnd: v.optional(v.number()), // Timestamp when trial ends
+    
+    // Purchase tracking
+    purchasedAt: v.optional(v.number()),
+    stripePaymentIntentId: v.optional(v.string()),
+    stripeCheckoutSessionId: v.optional(v.string()),
+    
+    // Payment status tracking
+    lastPaymentStatus: v.optional(v.union(
+      v.literal("succeeded"),
+      v.literal("requires_payment_method"),
+      v.literal("canceled"),
+      v.literal("failed")
+    )),
+    
+    // Discount/promotion tracking
+    promotionId: v.optional(v.id("pricing_campaigns")), // If purchased with discount
+    
+    // Decline tracking (prevents re-offering declined discounts)
+    declinedOnboardingOfferAt: v.optional(v.number()),
+    declinedPreTrialOfferAt: v.optional(v.number()),
+    
+    // Metadata
+    metadata: v.optional(v.any()),
+    
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_addon", ["addonId"])
+    .index("by_org_addon", ["orgId", "addonId"])
+    .index("by_status", ["status"]),
+
+  // Pricing Campaigns (Micro Add-On System: Discounts)
+  pricing_campaigns: defineTable({
+    addonId: v.id("addons"),
+    name: v.string(), // e.g., "Onboarding 50% Off", "Pre-Trial 30% Off"
+    type: v.union(
+      v.literal("onboarding"),
+      v.literal("pre_trial_end")
+    ),
+    
+    // Discount configuration
+    discountType: v.union(
+      v.literal("percentage"), // e.g., 50 = 50% off
+      v.literal("fixed") // e.g., 1000 = $10.00 off (in cents)
+    ),
+    discountValue: v.number(), // Percentage or fixed amount in cents
+    
+    // Timing window (relative to org lifecycle events)
+    startsRelativeTo: v.union(
+      v.literal("signup"), // Days since org creation
+      v.literal("trialStart"), // Days since trial started
+      v.literal("trialEnd") // Days before/after trial end
+    ),
+    offsetDaysStart: v.number(), // Start of eligibility window (e.g., -3 = 3 days before)
+    offsetDaysEnd: v.number(), // End of eligibility window (e.g., 0 = at event)
+    
+    // Eligibility rules (JSON schema)
+    eligibilityRules: v.optional(v.object({
+      companyTypes: v.optional(v.array(v.string())), // e.g., ["saas", "creator"]
+      subscriptionTiers: v.optional(v.array(v.string())), // e.g., ["solo", "light"]
+      requireDeclined: v.optional(v.boolean()), // Only show if not previously declined
+    })),
+    
+    // Stripe integration
+    stripeCouponId: v.optional(v.string()), // If using Stripe Coupons
+    stripePriceId: v.optional(v.string()), // If using separate discounted Price
+    
+    // Status
+    isActive: v.boolean(),
+    
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_addon", ["addonId"])
+    .index("by_type", ["type"])
+    .index("by_active", ["isActive"]),
+
+  // Story Templates (Micro Add-On System: Story Add-On Templates)
+  story_templates: defineTable({
+    addonId: v.id("addons"),
+    title: v.string(),
+    slug: v.string(),
+    storyType: v.union(
+      v.literal("company"),
+      v.literal("banker"),
+      v.literal("investor")
+    ),
+    templateBody: v.string(), // Template with variable placeholders
+    variables: v.array(v.string()), // List of available variables
+    config: v.optional(v.any()),
+    industry: v.optional(v.string()),
+    stage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_addon", ["addonId"])
+    .index("by_story_type", ["storyType"]),
+
+  // Report Templates (Micro Add-On System: Report Add-On Templates)
+  report_templates: defineTable({
+    addonId: v.id("addons"),
+    title: v.string(),
+    slug: v.string(),
+    reportType: v.string(), // "profit-loss", "balance-sheet", etc.
+    config: v.object({
+      metrics: v.array(v.string()),
+      filters: v.optional(v.any()),
+      layout: v.optional(v.any()),
+    }),
+    industry: v.optional(v.string()),
+    stage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_addon", ["addonId"])
+    .index("by_report_type", ["reportType"]),
 });
 

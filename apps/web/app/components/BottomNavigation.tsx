@@ -36,6 +36,7 @@ export function BottomNavigation() {
             (item.href === "/analytics" && pathname === "/analytics") ||
             (item.href === "/transactions" && pathname === "/transactions") ||
             (item.href === "/reports" && pathname?.startsWith("/reports")) ||
+            (item.href === "/add-ons" && pathname === "/add-ons") ||
             (item.href === "/settings" && pathname === "/settings");
           
           return (
