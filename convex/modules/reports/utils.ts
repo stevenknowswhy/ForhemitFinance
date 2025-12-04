@@ -31,7 +31,7 @@ export async function isReportsModuleEnabled(ctx: any, orgId?: string): Promise<
 
   const enablement = await ctx.db
     .query("module_enablements")
-    .withIndex("by_org_module", (q: any) => 
+    .withIndex("by_org_module", (q: any) =>
       q.eq("orgId", orgId).eq("moduleId", "reports")
     )
     .first();
@@ -41,6 +41,7 @@ export async function isReportsModuleEnabled(ctx: any, orgId?: string): Promise<
 
 /**
  * Helper function to calculate account balance from entry lines
+ * Optimized to avoid reading too many documents
  */
 export async function calculateAccountBalanceFromEntries(
   ctx: any,
@@ -50,43 +51,38 @@ export async function calculateAccountBalanceFromEntries(
 ): Promise<number> {
   let balance = 0;
 
-  // Get all entries up to the date (if provided)
-  const allEntries = await ctx.db
-    .query("entries_final")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId as any))
-    .collect();
+  // Optimized query using denormalized fields and composite index
+  let query = ctx.db
+    .query("entry_lines")
+    .withIndex("by_user_account_date", (q: any) =>
+      q.eq("userId", userId).eq("accountId", accountId)
+    );
 
-  const entries = asOfDate
-    ? allEntries.filter((e: any) => e.date <= asOfDate)
-    : allEntries;
+  // Apply date filter if provided
+  if (asOfDate) {
+    query = query.filter((q: any) => q.lte(q.field("date"), asOfDate));
+  }
 
-  // Get all entry lines for this account
-  for (const entry of entries) {
-    const lines = await ctx.db
-      .query("entry_lines")
-      .withIndex("by_entry", (q: any) => q.eq("entryId", entry._id))
-      .filter((q: any) => q.eq(q.field("accountId"), accountId))
-      .collect();
+  const lines = await query.collect();
 
-    for (const line of lines) {
-      // For assets and expenses: debit increases, credit decreases
-      // For liabilities, equity, and income: credit increases, debit decreases
-      const account = await ctx.db.get(accountId);
-      if (!account) continue;
+  // Get account type once
+  const account = await ctx.db.get(accountId);
+  if (!account) return 0;
 
-      if (account.type === "asset" || account.type === "expense") {
-        if (line.side === "debit") {
-          balance += line.amount;
-        } else {
-          balance -= line.amount;
-        }
+  // Calculate balance based on account type
+  for (const line of lines) {
+    if (account.type === "asset" || account.type === "expense") {
+      if (line.side === "debit") {
+        balance += line.amount;
       } else {
-        // liability, equity, income
-        if (line.side === "credit") {
-          balance += line.amount;
-        } else {
-          balance -= line.amount;
-        }
+        balance -= line.amount;
+      }
+    } else {
+      // liability, equity, income
+      if (line.side === "credit") {
+        balance += line.amount;
+      } else {
+        balance -= line.amount;
       }
     }
   }

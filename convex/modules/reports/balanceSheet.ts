@@ -69,38 +69,22 @@ export const getBalanceSheetData = query({
     }
 
     // Calculate retained earnings (net income from all entries up to asOfDate)
-    // Get all income and expense entries
-    const allEntries = await ctx.db
-      .query("entries_final")
-      .withIndex("by_user", (q: any) => q.eq("userId", user._id))
-      .filter((q: any) => q.lte(q.field("date"), asOfDate))
-      .collect();
-
+    // Optimized: Iterate accounts instead of entries
     let totalRevenue = 0;
     let totalExpenses = 0;
 
-    for (const entry of allEntries) {
-      const lines = await ctx.db
-        .query("entry_lines")
-        .withIndex("by_entry", (q: any) => q.eq("entryId", entry._id))
-        .collect();
-
-      for (const line of lines) {
-        const account = accounts.find((a: any) => a._id === line.accountId);
-        if (!account) continue;
+    for (const account of accounts) {
+      if (account.type === "income" || account.type === "expense") {
+        const balance = await calculateAccountBalanceFromEntries(ctx, user._id, account._id, asOfDate);
 
         if (account.type === "income") {
-          if (line.side === "credit") {
-            totalRevenue += line.amount;
-          } else {
-            totalRevenue -= line.amount;
-          }
+          // Income accounts: Credit is positive, Debit is negative (handled by calculateAccountBalanceFromEntries)
+          // But wait, calculateAccountBalanceFromEntries returns positive for "natural" balance.
+          // For Income, Credit > Debit = Positive Balance.
+          totalRevenue += balance;
         } else if (account.type === "expense") {
-          if (line.side === "debit") {
-            totalExpenses += line.amount;
-          } else {
-            totalExpenses -= line.amount;
-          }
+          // For Expense, Debit > Credit = Positive Balance.
+          totalExpenses += balance;
         }
       }
     }

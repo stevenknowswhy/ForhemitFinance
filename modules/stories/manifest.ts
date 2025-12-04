@@ -4,26 +4,25 @@
  */
 
 import { ModuleManifest } from "../core/types";
-import { BookOpen } from "lucide-react";
 
 export const storiesManifest: ModuleManifest = {
   id: "stories",
   version: "1.0.0",
   name: "AI Stories",
   description: "Generate AI-powered narrative stories from your financial data. Create company stories, banker stories, and investor stories for monthly, quarterly, or annual periods.",
-  icon: BookOpen,
+  icon: "BookOpen",
   category: "analytics",
-  
+
   // No dependencies
   dependencies: [],
-  
+
   // Permissions required for this module
   permissions: [
     "VIEW_STORIES",
     "GENERATE_STORIES",
     "EXPORT_STORIES",
   ],
-  
+
   // Routes provided by this module
   routes: [
     {
@@ -39,36 +38,52 @@ export const storiesManifest: ModuleManifest = {
       requiresPermission: "VIEW_STORIES",
     },
   ],
-  
+
   // Navigation items
   navigation: [
     {
       id: "stories",
       label: "Stories",
       href: "/stories",
-      icon: BookOpen,
+      icon: "BookOpen",
       order: 4,
       requiresPermission: "VIEW_STORIES",
     },
   ],
-  
+
+  // Insights Sidebar Navigation
+  insightsNavigation: {
+    sidebarItems: [
+      {
+        id: "stories",
+        label: "Stories",
+        icon: "BookOpen",
+        subSections: [
+          { id: "stories-company", label: "Company Story", icon: "Building2" },
+          { id: "stories-banker", label: "Banker Story", icon: "Banknote" },
+          { id: "stories-investor", label: "Investor Story", icon: "TrendingUp" },
+        ],
+      },
+    ],
+  },
+
   // Billing: Free for all tiers initially
   billing: {
     type: "free",
   },
-  
+
   // Database tables used by this module
   dataTables: [
     "ai_stories",
   ],
-  
+
   // Feature flags
   featureFlags: {
     enableAutoGeneration: true,
     enablePDFExport: true,
     enableMultiplePeriods: true,
   },
-  
+
   // Module metadata
   metadata: {
     storyTypes: ["company", "banker", "investor"],

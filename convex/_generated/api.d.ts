@@ -9,7 +9,6 @@
  */
 
 import type * as accounts from "../accounts.js";
-import type * as addonTemplates from "../addonTemplates.js";
 import type * as addons from "../addons.js";
 import type * as addresses from "../addresses.js";
 import type * as ai_entries from "../ai_entries.js";
@@ -43,8 +42,10 @@ import type * as helpers_orgContext from "../helpers/orgContext.js";
 import type * as investor_reports from "../investor_reports.js";
 import type * as knowledge_base from "../knowledge_base.js";
 import type * as memberships from "../memberships.js";
+import type * as migrations_backfill_entry_lines from "../migrations/backfill_entry_lines.js";
 import type * as migrations_enable_modules from "../migrations/enable_modules.js";
 import type * as migrations_phase1_multi_tenant from "../migrations/phase1_multi_tenant.js";
+import type * as migrations_runner from "../migrations/runner.js";
 import type * as mock_data from "../mock_data.js";
 import type * as moduleEntitlements from "../moduleEntitlements.js";
 import type * as moduleManifests from "../moduleManifests.js";
@@ -89,7 +90,6 @@ import type * as plaid_link from "../plaid/link.js";
 import type * as plaid_mock from "../plaid/mock.js";
 import type * as plaid_sdk from "../plaid/sdk.js";
 import type * as plaid_transactions from "../plaid/transactions.js";
-import type * as pricingCampaigns from "../pricingCampaigns.js";
 import type * as professionalContacts from "../professionalContacts.js";
 import type * as rbac from "../rbac.js";
 import type * as receipt_ocr from "../receipt_ocr.js";
@@ -102,6 +102,7 @@ import type * as reports_burnRateRunway from "../reports/burnRateRunway.js";
 import type * as reports_cashFlow from "../reports/cashFlow.js";
 import type * as reports_financialSummary from "../reports/financialSummary.js";
 import type * as reports_generalLedger from "../reports/generalLedger.js";
+import type * as reports_investorTemplate from "../reports/investorTemplate.js";
 import type * as reports_kpiDashboard from "../reports/kpiDashboard.js";
 import type * as reports_profitLoss from "../reports/profitLoss.js";
 import type * as reports_taxPreparation from "../reports/taxPreparation.js";
@@ -128,7 +129,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
-  addonTemplates: typeof addonTemplates;
   addons: typeof addons;
   addresses: typeof addresses;
   ai_entries: typeof ai_entries;
@@ -162,8 +162,10 @@ declare const fullApi: ApiFromModules<{
   investor_reports: typeof investor_reports;
   knowledge_base: typeof knowledge_base;
   memberships: typeof memberships;
+  "migrations/backfill_entry_lines": typeof migrations_backfill_entry_lines;
   "migrations/enable_modules": typeof migrations_enable_modules;
   "migrations/phase1_multi_tenant": typeof migrations_phase1_multi_tenant;
+  "migrations/runner": typeof migrations_runner;
   mock_data: typeof mock_data;
   moduleEntitlements: typeof moduleEntitlements;
   moduleManifests: typeof moduleManifests;
@@ -208,7 +210,6 @@ declare const fullApi: ApiFromModules<{
   "plaid/mock": typeof plaid_mock;
   "plaid/sdk": typeof plaid_sdk;
   "plaid/transactions": typeof plaid_transactions;
-  pricingCampaigns: typeof pricingCampaigns;
   professionalContacts: typeof professionalContacts;
   rbac: typeof rbac;
   receipt_ocr: typeof receipt_ocr;
@@ -221,6 +222,7 @@ declare const fullApi: ApiFromModules<{
   "reports/cashFlow": typeof reports_cashFlow;
   "reports/financialSummary": typeof reports_financialSummary;
   "reports/generalLedger": typeof reports_generalLedger;
+  "reports/investorTemplate": typeof reports_investorTemplate;
   "reports/kpiDashboard": typeof reports_kpiDashboard;
   "reports/profitLoss": typeof reports_profitLoss;
   "reports/taxPreparation": typeof reports_taxPreparation;

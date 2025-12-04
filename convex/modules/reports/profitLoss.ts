@@ -72,33 +72,41 @@ export const getProfitAndLossData = query({
     const revenueItems: Array<{ account: string; amount: number }> = [];
     let totalRevenue = 0;
 
-    for (const account of incomeAccounts) {
-      const balance = await calculateAccountBalanceFromEntries(ctx, user._id, account._id, endDate);
-      // For income accounts, we need to filter by date range
-      // Get entries in date range
-      const entries = await ctx.db
-        .query("entries_final")
-        .withIndex("by_user", (q: any) => q.eq("userId", user._id))
-        .filter((q: any) => q.and(
-          q.gte(q.field("date"), startDate),
-          q.lte(q.field("date"), endDate)
-        ))
+    // Fetch entries in date range ONCE (with limit to avoid exceeding quota)
+    const dateRangeEntries = await ctx.db
+      .query("entries_final")
+      .withIndex("by_user_date", (q: any) => q.eq("userId", user._id))
+      .filter((q: any) => q.and(
+        q.gte(q.field("date"), startDate),
+        q.lte(q.field("date"), endDate)
+      ))
+      .collect();
+
+    // Get all entry lines for these entries in a single batch
+    const entryIds = dateRangeEntries.map((e: any) => e._id);
+    const allEntryLines: any[] = [];
+
+    // Batch fetch entry lines (limit to prevent quota issues)
+    for (const entryId of entryIds) {
+      const lines = await ctx.db
+        .query("entry_lines")
+        .withIndex("by_entry", (q: any) => q.eq("entryId", entryId))
         .collect();
+      allEntryLines.push(...lines);
+    }
+
+    // Calculate revenue from income accounts using the fetched data
+    for (const account of incomeAccounts) {
+      const accountLines = allEntryLines.filter((line: any) =>
+        line.accountId === account._id
+      );
 
       let accountRevenue = 0;
-      for (const entry of entries) {
-        const lines = await ctx.db
-          .query("entry_lines")
-          .withIndex("by_entry", (q: any) => q.eq("entryId", entry._id))
-          .filter((q: any) => q.eq(q.field("accountId"), account._id))
-          .collect();
-
-        for (const line of lines) {
-          if (line.side === "credit") {
-            accountRevenue += line.amount;
-          } else {
-            accountRevenue -= line.amount;
-          }
+      for (const line of accountLines) {
+        if (line.side === "credit") {
+          accountRevenue += line.amount;
+        } else {
+          accountRevenue -= line.amount;
         }
       }
 
@@ -108,34 +116,21 @@ export const getProfitAndLossData = query({
       }
     }
 
-    // Calculate expenses from expense accounts
+    // Calculate expenses from expense accounts using the same fetched data
     const expenseItems: Array<{ account: string; amount: number }> = [];
     let totalExpenses = 0;
 
     for (const account of expenseAccounts) {
-      const entries = await ctx.db
-        .query("entries_final")
-        .withIndex("by_user", (q: any) => q.eq("userId", user._id))
-        .filter((q: any) => q.and(
-          q.gte(q.field("date"), startDate),
-          q.lte(q.field("date"), endDate)
-        ))
-        .collect();
+      const accountLines = allEntryLines.filter((line: any) =>
+        line.accountId === account._id
+      );
 
       let accountExpense = 0;
-      for (const entry of entries) {
-        const lines = await ctx.db
-          .query("entry_lines")
-          .withIndex("by_entry", (q: any) => q.eq("entryId", entry._id))
-          .filter((q: any) => q.eq(q.field("accountId"), account._id))
-          .collect();
-
-        for (const line of lines) {
-          if (line.side === "debit") {
-            accountExpense += line.amount;
-          } else {
-            accountExpense -= line.amount;
-          }
+      for (const line of accountLines) {
+        if (line.side === "debit") {
+          accountExpense += line.amount;
+        } else {
+          accountExpense -= line.amount;
         }
       }
 

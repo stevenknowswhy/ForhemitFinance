@@ -57,11 +57,7 @@ export interface UseTransactionSubmissionHandlerProps {
   autoPopulatedFromReceipt: boolean;
   setAutoPopulatedFromReceipt: (populated: boolean) => void;
   
-  // Split state
-  showSplitPrompt: boolean;
-  setShowSplitPrompt: (show: boolean) => void;
-  splitSuggestions: any[] | null;
-  setSplitSuggestions: (suggestions: any[] | null) => void;
+  splitHook: any;
   
   // Duplicate state
   duplicateDismissed: boolean;
@@ -126,10 +122,7 @@ export function useTransactionSubmissionHandler({
   setAutoPopulated,
   autoPopulatedFromReceipt,
   setAutoPopulatedFromReceipt,
-  showSplitPrompt,
-  setShowSplitPrompt,
-  splitSuggestions,
-  setSplitSuggestions,
+  splitHook,
   duplicateDismissed,
   setDuplicateDismissed,
   showReceiptUpload,
@@ -139,6 +132,7 @@ export function useTransactionSubmissionHandler({
   onClose,
   resetForm,
 }: UseTransactionSubmissionHandlerProps): UseTransactionSubmissionHandlerReturn {
+  const { setShowSplitPrompt, setSplitSuggestions } = splitHook;
   const createTransaction = useMutation(api.transactions.createRaw);
   const processTransaction = useMutation(api.transactions.processTransaction);
   const saveCorrection = useMutation(api.knowledge_base.saveCorrection);

@@ -450,6 +450,9 @@ export default defineSchema({
   entry_lines: defineTable({
     entryId: v.id("entries_final"),
     accountId: v.id("accounts"),
+    // Denormalized fields for reporting performance
+    userId: v.optional(v.id("users")), // Made optional for migration, will be required later
+    date: v.optional(v.number()),      // Made optional for migration, will be required later
     side: v.union(
       v.literal("debit"),
       v.literal("credit")
@@ -458,7 +461,8 @@ export default defineSchema({
     currency: v.string(),
   })
     .index("by_entry", ["entryId"])
-    .index("by_account", ["accountId"]),
+    .index("by_account", ["accountId"])
+    .index("by_user_account_date", ["userId", "accountId", "date"]),
 
   // Receipts
   receipts: defineTable({
@@ -859,7 +863,7 @@ export default defineSchema({
     name: v.string(),
     shortDescription: v.string(),
     longDescription: v.string(),
-    
+
     // Categorization
     category: v.union(
       v.literal("stories"),
@@ -868,18 +872,18 @@ export default defineSchema({
       v.literal("stage_pack"),
       v.literal("bundle")
     ),
-    
+
     // Pricing
     isFree: v.boolean(),
     supportsTrial: v.boolean(),
     trialDurationDays: v.optional(v.number()), // e.g., 14
-    
+
     // Stripe integration (nullable for free add-ons)
     stripeProductId: v.optional(v.string()),
     stripePriceId: v.optional(v.string()), // Base price
     priceAmount: v.optional(v.number()), // In cents
     priceCurrency: v.optional(v.string()), // "usd"
-    
+
     // Versioning
     version: v.string(), // Semantic versioning
     status: v.union(
@@ -888,53 +892,57 @@ export default defineSchema({
       v.literal("hidden"), // Active but not shown in marketplace
       v.literal("deprecated")
     ),
-    
+
     // UI placement
     uiPlacement: v.object({
       section: v.string(), // "insights", "reports", etc.
       label: v.string(), // Display name in UI
       icon: v.optional(v.string()), // Icon name
     }),
-    
+
     // Configuration schema (JSON schema for Super Admin config)
     configSchema: v.optional(v.any()),
-    
+
     // Metadata
     metadata: v.optional(v.any()), // Flexible for add-on-specific data
-    
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_slug", ["slug"])
     .index("by_status", ["status"])
-    .index("by_category", ["category"]),
+    .index("by_category", ["category"])
+    .searchIndex("search_name", {
+      searchField: "name",
+      filterFields: ["status", "category"],
+    }),
 
   // Org Add-ons (Micro Add-On System: Entitlements)
   org_addons: defineTable({
     orgId: v.id("organizations"),
     addonId: v.id("addons"),
-    
+
     status: v.union(
       v.literal("trialing"),
       v.literal("active"),
       v.literal("expired"),
       v.literal("revoked")
     ),
-    
+
     source: v.union(
       v.literal("free"),
       v.literal("paid"),
       v.literal("promo")
     ),
-    
+
     // Trial tracking
     trialEnd: v.optional(v.number()), // Timestamp when trial ends
-    
+
     // Purchase tracking
     purchasedAt: v.optional(v.number()),
     stripePaymentIntentId: v.optional(v.string()),
     stripeCheckoutSessionId: v.optional(v.string()),
-    
+
     // Payment status tracking
     lastPaymentStatus: v.optional(v.union(
       v.literal("succeeded"),
@@ -942,17 +950,17 @@ export default defineSchema({
       v.literal("canceled"),
       v.literal("failed")
     )),
-    
+
     // Discount/promotion tracking
     promotionId: v.optional(v.id("pricing_campaigns")), // If purchased with discount
-    
+
     // Decline tracking (prevents re-offering declined discounts)
     declinedOnboardingOfferAt: v.optional(v.number()),
     declinedPreTrialOfferAt: v.optional(v.number()),
-    
+
     // Metadata
     metadata: v.optional(v.any()),
-    
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -969,14 +977,14 @@ export default defineSchema({
       v.literal("onboarding"),
       v.literal("pre_trial_end")
     ),
-    
+
     // Discount configuration
     discountType: v.union(
       v.literal("percentage"), // e.g., 50 = 50% off
       v.literal("fixed") // e.g., 1000 = $10.00 off (in cents)
     ),
     discountValue: v.number(), // Percentage or fixed amount in cents
-    
+
     // Timing window (relative to org lifecycle events)
     startsRelativeTo: v.union(
       v.literal("signup"), // Days since org creation
@@ -985,21 +993,21 @@ export default defineSchema({
     ),
     offsetDaysStart: v.number(), // Start of eligibility window (e.g., -3 = 3 days before)
     offsetDaysEnd: v.number(), // End of eligibility window (e.g., 0 = at event)
-    
+
     // Eligibility rules (JSON schema)
     eligibilityRules: v.optional(v.object({
       companyTypes: v.optional(v.array(v.string())), // e.g., ["saas", "creator"]
       subscriptionTiers: v.optional(v.array(v.string())), // e.g., ["solo", "light"]
       requireDeclined: v.optional(v.boolean()), // Only show if not previously declined
     })),
-    
+
     // Stripe integration
     stripeCouponId: v.optional(v.string()), // If using Stripe Coupons
     stripePriceId: v.optional(v.string()), // If using separate discounted Price
-    
+
     // Status
     isActive: v.boolean(),
-    
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -1047,4 +1055,3 @@ export default defineSchema({
     .index("by_addon", ["addonId"])
     .index("by_report_type", ["reportType"]),
 });
-

@@ -11,12 +11,16 @@ import { BottomNavigation } from "../components/BottomNavigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { BookOpen, FileText, Loader2, CheckCircle2, Lock, Sparkles, Clock, AlertCircle } from "lucide-react";
+import { BookOpen, FileText, Loader2, CheckCircle2, Lock, Sparkles, Clock, AlertCircle, Search, Filter, ArrowUpDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id, Doc } from "@convex/_generated/dataModel";
+import { useDebounce } from "use-debounce";
 
 type EnrichedAddon = Doc<"addons"> & {
   entitlement: {
@@ -27,6 +31,7 @@ type EnrichedAddon = Doc<"addons"> & {
     lastPaymentStatus?: string;
   } | null;
   campaigns: Doc<"pricing_campaigns">[];
+  isEnabled: boolean;
 };
 
 // Map icon names to components
@@ -48,12 +53,23 @@ export default function AddOnsPage() {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch] = useDebounce(searchQuery, 500);
+  const [category, setCategory] = useState("all");
+  const [sortBy, setSortBy] = useState("name");
+
   const canManageModules = userRole === "ORG_OWNER" || userRole === "ORG_ADMIN";
 
   // Get available add-ons
   const addons = useQuery(
     api.addons.getAvailableAddons,
-    currentOrgId ? { orgId: currentOrgId } : "skip"
+    currentOrgId ? {
+      orgId: currentOrgId,
+      search: debouncedSearch || undefined,
+      category: category === "all" ? undefined : category,
+      sortBy: sortBy,
+    } : "skip"
   );
 
   // Mutations
@@ -61,6 +77,20 @@ export default function AddOnsPage() {
   const startTrial = useMutation(api.addons.startAddonTrial);
   const declineOnboarding = useMutation(api.addons.declineOnboardingOffer);
   const declinePreTrial = useMutation(api.addons.declinePreTrialOffer);
+  const toggleAddon = useMutation(api.addons.toggleAddon);
+
+  // Handle toggle
+  const handleToggle = async (addonId: Id<"addons">) => {
+    if (!currentOrgId) return;
+    setLoadingAction(addonId);
+    try {
+      await toggleAddon({ orgId: currentOrgId, addonId });
+    } catch (error) {
+      console.error("Failed to toggle add-on:", error);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
 
   // Handle enabling free add-on
   const handleEnableFree = async (addonId: Id<"addons">) => {
@@ -150,13 +180,49 @@ export default function AddOnsPage() {
   return (
     <div className="min-h-screen bg-background pb-20 lg:pb-8">
       <DesktopNavigation />
-      
+
       <main className="max-w-7xl mx-auto p-4 md:p-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Add-ons & Modules</h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-6">
             Enhance your financial app with optional add-ons. Enable free add-ons, start trials, or purchase lifetime unlocks.
           </p>
+
+          {/* Search & Filter Bar */}
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-card p-4 rounded-lg border shadow-sm">
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search add-ons..."
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto">
+              <Tabs value={category} onValueChange={setCategory} className="w-auto">
+                <TabsList>
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="stories">Stories</TabsTrigger>
+                  <TabsTrigger value="reports">Reports</TabsTrigger>
+                  <TabsTrigger value="bundle">Bundles</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[180px]">
+                  <ArrowUpDown className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name (A-Z)</SelectItem>
+                  <SelectItem value="price">Price (Low to High)</SelectItem>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
         {!currentOrgId ? (
@@ -172,9 +238,32 @@ export default function AddOnsPage() {
               <p className="text-muted-foreground">Loading add-ons...</p>
             </CardContent>
           </Card>
+        ) : addons.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <div className="bg-muted/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <Search className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">No add-ons found</h3>
+              <p className="text-muted-foreground">
+                Try adjusting your search or filters to find what you're looking for.
+              </p>
+              <Button
+                variant="link"
+                onClick={() => {
+                  setSearchQuery("");
+                  setCategory("all");
+                  setSortBy("name");
+                }}
+                className="mt-2"
+              >
+                Clear filters
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {addons.filter(addon => getAddonStatus(addon) !== 'active').map((addon: EnrichedAddon) => {
+            {addons.map((addon: EnrichedAddon) => {
               const Icon = getAddonIcon(addon.uiPlacement?.icon);
               const status = getAddonStatus(addon);
               const daysLeft = getDaysUntilTrialEnd(addon.entitlement?.trialEnd);
@@ -344,7 +433,11 @@ export default function AddOnsPage() {
                         {status === "active" && canManageModules && (
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground">Enabled</span>
-                            <Switch checked={true} disabled />
+                            <Switch
+                              checked={addon.isEnabled}
+                              onCheckedChange={() => handleToggle(addon._id)}
+                              disabled={loadingAction === addon._id}
+                            />
                           </div>
                         )}
                       </div>

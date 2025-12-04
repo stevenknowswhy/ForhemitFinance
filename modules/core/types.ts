@@ -2,9 +2,6 @@
  * Core types for the module system
  */
 
-import { LucideIcon } from "lucide-react";
-import { ReactNode } from "react";
-
 /**
  * Module ID - unique identifier for each module
  */
@@ -23,7 +20,7 @@ export type SubscriptionTier = "solo" | "light" | "pro";
 /**
  * Billing type for modules
  */
-export type ModuleBilling = 
+export type ModuleBilling =
   | { type: "free" } // Available to all tiers
   | { type: "included"; requiredTier: SubscriptionTier } // Included in specific tier
   | { type: "paid"; requiredTier: SubscriptionTier }; // Requires upgrade
@@ -33,9 +30,9 @@ export type ModuleBilling =
  */
 export interface ModuleRoute {
   path: string;
-  component?: ReactNode | (() => ReactNode);
+  // component removed as it causes issues in backend
   label?: string;
-  icon?: LucideIcon;
+  icon?: string;
   requiresAuth?: boolean;
   requiresPermission?: string;
 }
@@ -47,7 +44,7 @@ export interface ModuleNavigationItem {
   id: string;
   label: string;
   href: string;
-  icon?: LucideIcon;
+  icon?: string;
   badge?: string | number;
   order?: number;
   requiresPermission?: string;
@@ -90,38 +87,38 @@ export interface ModuleManifest {
   // Core identification
   id: ModuleId;
   version: ModuleVersion;
-  
+
   // Metadata
   name: string;
   description: string;
-  icon?: string | LucideIcon;
+  icon?: string;
   category?: string;
-  
+
   // Dependencies
   dependencies?: ModuleDependency[];
   requiredCoreVersion?: ModuleVersion;
-  
+
   // Permissions
   permissions?: string[]; // Module-specific permissions
-  
+
   // Routes
   routes?: ModuleRoute[];
-  
+
   // Navigation
   navigation?: ModuleNavigationItem[];
-  
+
   // Insights navigation (for modules that contribute to Insights tab)
   insightsNavigation?: InsightsNavigation;
-  
+
   // Billing
   billing: ModuleBilling;
-  
+
   // Data schema
   dataTables?: string[]; // Database tables used by this module
-  
+
   // Feature flags
   featureFlags?: Record<string, boolean>;
-  
+
   // Module-specific metadata
   metadata?: Record<string, any>;
 }

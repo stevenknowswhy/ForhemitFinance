@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import type { LineItem } from "../types";
 import { useOrgIdOptional } from "../../../../hooks/useOrgId";
 import { useLineItems } from "./useLineItems";
 import { useTransactionValidation } from "./useTransactionValidation";
@@ -14,7 +15,7 @@ import { useTransactionForm } from "./useTransactionForm";
 import { useTransactionAI } from "./useTransactionAI";
 import { useReceiptOCR } from "./useReceiptOCR";
 import { useTransactionSubmission } from "./useTransactionSubmission";
-import { useSplitTransaction } from "./useSplitTransaction";
+import { useSplitTransaction, UseSplitTransactionReturn } from "./useSplitTransaction";
 import { useSimilarTransactions } from "./useSimilarTransactions";
 import { useTaxCompliance } from "./useTaxCompliance";
 import { useTransactionAIHandlers } from "./useTransactionAIHandlers";
@@ -70,7 +71,7 @@ export interface UseTransactionModalOrchestrationReturn {
     totalsDifference: number;
     addLineItem: () => void;
     removeLineItem: (id: string) => void;
-    updateLineItem: (id: string, field: string, value: string) => void;
+    updateLineItem: (id: string, field: keyof LineItem, value: string) => void;
     enableItemization: () => void;
     disableItemization: () => void;
     setLineItems: React.Dispatch<React.SetStateAction<any[]>>;
@@ -79,7 +80,14 @@ export interface UseTransactionModalOrchestrationReturn {
 
   // Validation
   errors: any;
-  validateForm: () => boolean;
+  validateForm: (
+    title: string,
+    amount: string,
+    date: string,
+    category: string,
+    showItemization: boolean,
+    lineItems: LineItem[]
+  ) => boolean;
   clearErrors: () => void;
   setErrors: (updater: (prev: any) => any) => void;
 
@@ -128,14 +136,7 @@ export interface UseTransactionModalOrchestrationReturn {
   setShowReceiptUpload: (show: boolean) => void;
 
   // Split transaction
-  showSplitPrompt: boolean;
-  setShowSplitPrompt: (show: boolean) => void;
-  splitSuggestions: any[] | null;
-  setSplitSuggestions: (suggestions: any[] | null) => void;
-  isLoadingSplit: boolean;
-  showSplitInfoModal: boolean;
-  setShowSplitInfoModal: (show: boolean) => void;
-  handleSplitSuggestion: (suggestion: any) => Promise<void>;
+  splitHook: UseSplitTransactionReturn;
 
   // Tax & Compliance
   taxRate: string;
@@ -153,7 +154,7 @@ export interface UseTransactionModalOrchestrationReturn {
 
   // Similar transactions
   hasSimilarTransaction: boolean;
-  similarTransactions: any[] | null;
+  similarTransactions: any[] | undefined;
 
   // Duplicate detection
   duplicateMatch: any;
@@ -533,10 +534,7 @@ export function useTransactionModalOrchestration({
     setAutoPopulated,
     autoPopulatedFromReceipt,
     setAutoPopulatedFromReceipt,
-    showSplitPrompt: splitHook.showSplitPrompt,
-    setShowSplitPrompt: splitHook.setShowSplitPrompt,
-    splitSuggestions,
-    setSplitSuggestions,
+    splitHook,
     duplicateDismissed,
     setDuplicateDismissed,
     showReceiptUpload,
@@ -648,13 +646,7 @@ export function useTransactionModalOrchestration({
     setShowReceiptUpload,
 
     // Split transaction
-    showSplitPrompt,
-    splitSuggestions,
-    setSplitSuggestions,
-    isLoadingSplit,
-    showSplitInfoModal,
-    setShowSplitInfoModal,
-    handleSplitSuggestion,
+    splitHook,
 
     // Tax & Compliance
     taxRate,

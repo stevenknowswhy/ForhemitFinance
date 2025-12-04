@@ -116,7 +116,7 @@ export const getOrgModuleStatus = query({
     // Log any dangling enablements (enablements for modules not in manifest list)
     // This helps debug misconfigurations
     const registeredModuleIds = new Set(allRegisteredModules.map(m => m.id));
-    const danglingEnablements = enablements.filter(e => 
+    const danglingEnablements = enablements.filter(e =>
       e.enabled && !registeredModuleIds.has(e.moduleId)
     );
     if (danglingEnablements.length > 0 && process.env.NODE_ENV === "development") {
@@ -135,8 +135,8 @@ export const getOrgModuleStatus = query({
         (override) => override.userId === user._id
       );
       // If user has an explicit override, use it; otherwise default to org setting
-      const isUserEnabled = userOverride !== undefined 
-        ? userOverride.enabled 
+      const isUserEnabled = userOverride !== undefined
+        ? userOverride.enabled
         : isOrgEnabled;
 
       // Check entitlement based on plan
@@ -162,7 +162,7 @@ export const getOrgModuleStatus = query({
           version: manifest.version,
           name: manifest.name,
           description: manifest.description,
-          icon: typeof manifest.icon === "string" ? manifest.icon : manifest.icon?.name || "FileText",
+          icon: manifest.icon || "DefaultIcon",
           category: manifest.category,
           billing: manifest.billing,
           permissions: manifest.permissions,
