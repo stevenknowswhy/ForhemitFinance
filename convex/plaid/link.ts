@@ -13,7 +13,7 @@ import { getPlaidClient, loadPlaidSDK } from "./sdk";
  */
 export const createLinkToken = action({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -69,7 +69,7 @@ export const exchangePublicToken = action({
     institutionName: v.string(),
     orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");

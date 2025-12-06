@@ -106,7 +106,7 @@ export const updateOrgSubscription = mutation({
 
       const oldPlan = await ctx.db.get(subscription.planId);
       const newPlan = await ctx.db.get(args.planId);
-      
+
       await logSubscriptionChanged(ctx, {
         orgId: args.orgId,
         actorUserId: user._id,
@@ -116,16 +116,17 @@ export const updateOrgSubscription = mutation({
       });
 
       // Sync module entitlements if plan changed
-      if (oldPlan && newPlan && oldPlan.name !== newPlan.name) {
-        await ctx.scheduler.runAfter(0, api.modules.syncModuleEntitlements, {
-          orgId: args.orgId,
-          oldTier: oldPlan.name as "solo" | "light" | "pro",
-          newTier: newPlan.name as "solo" | "light" | "pro",
-          planId: args.planId,
-          subscriptionStatus: args.status,
-          trialEndsAt: args.trialEndsAt,
-        });
-      }
+      // TODO: Implement syncModuleEntitlements function
+      // if (oldPlan && newPlan && oldPlan.name !== newPlan.name) {
+//       //   await ctx.scheduler.runAfter(0, api.modules.syncModuleEntitlements, {
+//       //     orgId: args.orgId,
+//       //     oldTier: oldPlan.name as "solo" | "light" | "pro",
+//       //     newTier: newPlan.name as "solo" | "light" | "pro",
+//       //     planId: args.planId,
+//       //     subscriptionStatus: args.status,
+//       //     trialEndsAt: args.trialEndsAt,
+//       //   });
+      // }
     } else {
       // Create new subscription
       const subId = await ctx.db.insert("subscriptions", {
@@ -150,14 +151,14 @@ export const updateOrgSubscription = mutation({
 
       // Sync module entitlements for new subscription
       if (plan) {
-        await ctx.scheduler.runAfter(0, api.modules.syncModuleEntitlements, {
-          orgId: args.orgId,
-          oldTier: undefined,
-          newTier: plan.name as "solo" | "light" | "pro",
-          planId: args.planId,
-          subscriptionStatus: args.status,
-          trialEndsAt: args.trialEndsAt,
-        });
+//         await ctx.scheduler.runAfter(0, api.modules.syncModuleEntitlements, {
+//           orgId: args.orgId,
+//           oldTier: undefined,
+//           newTier: plan.name as "solo" | "light" | "pro",
+//           planId: args.planId,
+//           subscriptionStatus: args.status,
+//           trialEndsAt: args.trialEndsAt,
+//         });
       }
     }
   },
@@ -190,7 +191,7 @@ export const updateOrgSubscriptionInternal = internalMutation({
     if (subscription) {
       const oldPlan = await ctx.db.get(subscription.planId);
       const newPlan = await ctx.db.get(args.planId);
-      
+
       await ctx.db.patch(subscription._id, {
         planId: args.planId,
         status: args.status,
@@ -201,14 +202,14 @@ export const updateOrgSubscriptionInternal = internalMutation({
 
       // Sync module entitlements if plan changed
       if (oldPlan && newPlan && oldPlan.name !== newPlan.name) {
-        await ctx.scheduler.runAfter(0, api.modules.syncModuleEntitlements, {
-          orgId: args.orgId,
-          oldTier: oldPlan.name as "solo" | "light" | "pro",
-          newTier: newPlan.name as "solo" | "light" | "pro",
-          planId: args.planId,
-          subscriptionStatus: args.status,
-          trialEndsAt: args.trialEndsAt,
-        });
+//         await ctx.scheduler.runAfter(0, api.modules.syncModuleEntitlements, {
+//           orgId: args.orgId,
+//           oldTier: oldPlan.name as "solo" | "light" | "pro",
+//           newTier: newPlan.name as "solo" | "light" | "pro",
+//           planId: args.planId,
+//           subscriptionStatus: args.status,
+//           trialEndsAt: args.trialEndsAt,
+//         });
       }
     } else {
       // Create new subscription
@@ -226,14 +227,14 @@ export const updateOrgSubscriptionInternal = internalMutation({
 
       // Sync module entitlements for new subscription
       if (plan) {
-        await ctx.scheduler.runAfter(0, api.modules.syncModuleEntitlements, {
-          orgId: args.orgId,
-          oldTier: undefined,
-          newTier: plan.name as "solo" | "light" | "pro",
-          planId: args.planId,
-          subscriptionStatus: args.status,
-          trialEndsAt: args.trialEndsAt,
-        });
+//         await ctx.scheduler.runAfter(0, api.modules.syncModuleEntitlements, {
+//           orgId: args.orgId,
+//           oldTier: undefined,
+//           newTier: plan.name as "solo" | "light" | "pro",
+//           planId: args.planId,
+//           subscriptionStatus: args.status,
+//           trialEndsAt: args.trialEndsAt,
+//         });
       }
     }
   },

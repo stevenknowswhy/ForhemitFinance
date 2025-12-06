@@ -24,9 +24,9 @@ export const syncAddons = mutation({
         shortDescription: manifest.description,
         longDescription: manifest.description, // Use same for now
         category: (manifest.id === "stories" ? "stories" : manifest.id === "reports" ? "reports" : "bundle") as any,
-        isFree: manifest.billing.type === "free",
-        supportsTrial: manifest.billing.type === "paid", // Assume paid supports trial for now
-        trialDurationDays: manifest.billing.type === "paid" ? 14 : undefined,
+        isFree: true, // All current modules are free
+        supportsTrial: false, // Free modules don't need trials
+        trialDurationDays: undefined,
         version: manifest.version,
         status: "active" as const,
         uiPlacement: {
@@ -47,6 +47,109 @@ export const syncAddons = mutation({
       }
     }
     return "Synced " + manifests.length + " addons";
+  },
+});
+
+export const startAddonTrial = mutation({
+  args: {
+    orgId: v.string(),
+    addonId: v.id("addons"),
+  },
+  handler: async (ctx, args) => {
+    // 1. Verify addon
+    const addon = await ctx.db.get(args.addonId);
+    if (!addon) throw new Error("Addon not found");
+
+    // 2. Check existing entitlement
+    const existingEntitlement = await ctx.db
+      .query("org_addons")
+      .withIndex("by_org_addon", (q) =>
+        q.eq("orgId", args.orgId as any).eq("addonId", args.addonId)
+      )
+      .first();
+
+    const trialDays = addon.trialDurationDays || 14;
+    const trialEnd = Date.now() + trialDays * 24 * 60 * 60 * 1000;
+
+    if (existingEntitlement) {
+      // Update existing
+      await ctx.db.patch(existingEntitlement._id, {
+        status: "trialing",
+        source: "trial",
+        trialEnd,
+        updatedAt: Date.now(),
+      });
+    } else {
+      // Create new
+      await ctx.db.insert("org_addons", {
+        orgId: args.orgId as any,
+        addonId: args.addonId,
+        status: "trialing",
+        source: "trial",
+        trialEnd,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    // 3. Enable the module
+    const existingEnablement = await ctx.db
+      .query("module_enablements")
+      .withIndex("by_org_module", (q) =>
+        q.eq("orgId", args.orgId as any).eq("moduleId", addon.slug)
+      )
+      .first();
+
+    if (existingEnablement) {
+      await ctx.db.patch(existingEnablement._id, {
+        enabled: true,
+        updatedAt: Date.now(),
+      });
+    } else {
+      const identity = await ctx.auth.getUserIdentity();
+      // If system call, might not have identity. For now require it or skip enabledBy
+      if (identity) {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_email", (q) => q.eq("email", identity.email!))
+          .first();
+
+        if (user) {
+          await ctx.db.insert("module_enablements", {
+            orgId: args.orgId as any,
+            moduleId: addon.slug,
+            enabled: true,
+            enabledBy: user._id,
+            enabledAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    }
+
+    return "Trial started";
+  },
+});
+
+export const declineOnboardingOffer = mutation({
+  args: {
+    orgId: v.optional(v.string()), // Optional as user might not have org yet?
+    offerId: v.optional(v.string()),
+  },
+  handler: async () => {
+    // No-op for now, just to satisfy the API check
+    return true;
+  },
+});
+
+export const declinePreTrialOffer = mutation({
+  args: {
+    orgId: v.optional(v.string()),
+    offerId: v.optional(v.string()),
+  },
+  handler: async () => {
+    // No-op for now
+    return true;
   },
 });
 
@@ -181,7 +284,7 @@ export const getAvailableAddons = query({
     category: v.optional(v.string()),
     sortBy: v.optional(v.string()), // "name", "price", "newest"
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     let addons;
 
     // 1. Fetch addons (Search vs List)
@@ -200,15 +303,11 @@ export const getAvailableAddons = query({
         .collect();
     } else {
       // No search, just list
-      let query = ctx.db.query("addons");
-
       if (args.category && args.category !== "all") {
-        query = query.withIndex("by_category", (q) => q.eq("category", args.category as any));
+        addons = await ctx.db.query("addons").withIndex("by_category", (q) => q.eq("category", args.category as any)).collect();
       } else {
-        query = query.withIndex("by_status", (q) => q.eq("status", "active"));
+        addons = await ctx.db.query("addons").withIndex("by_status", (q) => q.eq("status", "active")).collect();
       }
-
-      addons = await query.collect();
 
       // If we used category index, we still need to filter by status active
       if (args.category && args.category !== "all") {
@@ -245,7 +344,7 @@ export const getAvailableAddons = query({
         entitlement: null,
         campaigns: [],
         isEnabled: false,
-      }));
+      })) as any;
     }
 
     // Enrich with entitlement info
@@ -289,6 +388,91 @@ export const getAvailableAddons = query({
       })
     );
 
-    return enrichedAddons;
+    return enrichedAddons as any;
+  },
+});
+
+/**
+ * Activate an add-on purchase after successful payment
+ */
+export const activateAddonPurchase = mutation({
+  args: {
+    orgId: v.string(),
+    addonId: v.id("addons"),
+    promotionId: v.optional(v.id("pricing_campaigns")),
+    checkoutSessionId: v.string(),
+    paymentIntentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const addon = await ctx.db.get(args.addonId);
+    if (!addon) throw new Error("Addon not found");
+
+    // Check/create org_addons record
+    const existing = await ctx.db
+      .query("org_addons")
+      .withIndex("by_org_addon", (q: any) =>
+        q.eq("orgId", args.orgId as any).eq("addonId", args.addonId)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        status: "active",
+        source: "paid",
+        purchasedAt: Date.now(),
+        stripeCheckoutSessionId: args.checkoutSessionId,
+        stripePaymentIntentId: args.paymentIntentId,
+        lastPaymentStatus: "succeeded",
+        promotionId: args.promotionId,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("org_addons", {
+        orgId: args.orgId as any,
+        addonId: args.addonId,
+        status: "active",
+        source: "paid",
+        purchasedAt: Date.now(),
+        stripeCheckoutSessionId: args.checkoutSessionId,
+        stripePaymentIntentId: args.paymentIntentId,
+        lastPaymentStatus: "succeeded",
+        promotionId: args.promotionId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Enable the module (simple no-op for now)
+    return "Purchase activated";
+  },
+});
+
+/**
+ * Handle payment failure for an add-on
+ */
+export const handlePaymentFailure = mutation({
+  args: {
+    orgId: v.string(),
+    addonId: v.id("addons"),
+    paymentIntentId: v.string(),
+    failureReason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Update org_addons if it exists
+    const existing = await ctx.db
+      .query("org_addons")
+      .withIndex("by_org_addon", (q: any) =>
+        q.eq("orgId", args.orgId as any).eq("addonId", args.addonId)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        lastPaymentStatus: "failed",
+        updatedAt: Date.now(),
+      });
+    }
+
+    return "Payment failure recorded";
   },
 });

@@ -63,19 +63,19 @@ export interface UseTransactionModalOrchestrationReturn {
   entryMode: "simple" | "itemized";
   hasValidTitle: boolean;
 
-    // Line items
-    lineItems: any[];
-    showItemization: boolean;
-    lineItemsTotal: number;
-    totalsMatch: boolean;
-    totalsDifference: number;
-    addLineItem: () => void;
-    removeLineItem: (id: string) => void;
-    updateLineItem: (id: string, field: keyof LineItem, value: string) => void;
-    enableItemization: () => void;
-    disableItemization: () => void;
-    setLineItems: React.Dispatch<React.SetStateAction<any[]>>;
-    setShowItemization: (show: boolean) => void;
+  // Line items
+  lineItems: any[];
+  showItemization: boolean;
+  lineItemsTotal: number;
+  totalsMatch: boolean;
+  totalsDifference: number;
+  addLineItem: () => void;
+  removeLineItem: (id: string) => void;
+  updateLineItem: (id: string, field: keyof LineItem, value: string) => void;
+  enableItemization: () => void;
+  disableItemization: () => void;
+  setLineItems: React.Dispatch<React.SetStateAction<any[]>>;
+  setShowItemization: (show: boolean) => void;
 
 
   // Validation
@@ -137,6 +137,13 @@ export interface UseTransactionModalOrchestrationReturn {
 
   // Split transaction
   splitHook: UseSplitTransactionReturn;
+  showSplitPrompt: boolean;
+  setShowSplitPrompt: (show: boolean) => void;
+  splitSuggestions: any[] | null;
+  isLoadingSplit: boolean;
+  showSplitInfoModal: boolean;
+  setShowSplitInfoModal: (show: boolean) => void;
+  handleSplitSuggestion: (suggestion: any) => void;
 
   // Tax & Compliance
   taxRate: string;
@@ -331,6 +338,7 @@ export function useTransactionModalOrchestration({
   );
   const {
     showSplitPrompt,
+    setShowSplitPrompt,
     splitSuggestions,
     setSplitSuggestions,
     isLoadingSplit,
@@ -365,10 +373,10 @@ export function useTransactionModalOrchestration({
     api.duplicate_detection.findDuplicates,
     title.trim().length >= 3 && amount && transactionType !== null && isBusiness !== null
       ? {
-          merchant: title,
-          amount: parseFloat(amount) || 0,
-          date: date,
-        }
+        merchant: title,
+        amount: parseFloat(amount) || 0,
+        date: date,
+      }
       : "skip"
   );
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
@@ -543,6 +551,7 @@ export function useTransactionModalOrchestration({
     userAccounts,
     onClose,
     resetForm,
+    validateForm,
   });
   const { handleSubmit } = submissionHandler;
 
@@ -647,6 +656,13 @@ export function useTransactionModalOrchestration({
 
     // Split transaction
     splitHook,
+    showSplitPrompt,
+    setShowSplitPrompt,
+    splitSuggestions,
+    isLoadingSplit,
+    showSplitInfoModal,
+    setShowSplitInfoModal,
+    handleSplitSuggestion,
 
     // Tax & Compliance
     taxRate,

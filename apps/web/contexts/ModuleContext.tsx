@@ -9,6 +9,7 @@ import { createContext, useContext, ReactNode } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useOrg } from "@/app/contexts/OrgContext";
+import { useUser } from "@clerk/nextjs";
 import { useModule, useModuleAccess } from "../hooks/useModule";
 import { useEnabledModules, useModuleStatuses } from "../hooks/useEnabledModules";
 import { useToast } from "@/components/ui/hooks/use-toast";
@@ -30,7 +31,9 @@ interface ModuleContextType {
 const ModuleContext = createContext<ModuleContextType | undefined>(undefined);
 
 export function ModuleContextProvider({ children }: { children: ReactNode }) {
-  const { currentOrgId, currentUserId } = useOrg();
+  const { currentOrgId } = useOrg();
+  const { user } = useUser();
+  const currentUserId = user?.id; // Or use user.id if guaranteed by auth guard, but optional is safer here
   const { toast } = useToast();
 
   const enabledModules = useEnabledModules();
@@ -113,7 +116,7 @@ export function ModuleContextProvider({ children }: { children: ReactNode }) {
       await setUserOverrideMutation({
         orgId: currentOrgId,
         moduleId,
-        userId: currentUserId,
+        userId: currentUserId as any,
         enabled,
       });
     } catch (error: any) {

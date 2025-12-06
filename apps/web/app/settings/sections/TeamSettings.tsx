@@ -191,7 +191,7 @@ export function TeamSettings() {
             </p>
           ) : (
             <div className="space-y-3">
-              {members.map((member) => (
+              {members.map((member: any) => (
                 <div
                   key={member._id}
                   className="flex items-center justify-between p-3 border rounded-lg"

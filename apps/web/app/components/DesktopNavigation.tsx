@@ -29,14 +29,14 @@ export function DesktopNavigation() {
 
   // Get all navigation items (core + modules)
   const allNavItems = getAllNavigationItems(enabledModuleIds);
-  
+
   // Filter out Home from nav items since it's in the logo area
   const navItems = allNavItems.filter(item => item.id !== "dashboard");
 
   return (
     <nav className="hidden lg:flex items-center gap-1 bg-card border-b border-border px-4 md:px-6">
       <div className="flex items-center gap-2 mr-6">
-        <Link 
+        <Link
           href="/dashboard"
           className={cn(
             "flex items-center gap-2 px-3 py-2 rounded-lg transition-colors",
@@ -49,14 +49,14 @@ export function DesktopNavigation() {
           <h1 className="text-lg font-bold">EZ Financial</h1>
         </Link>
       </div>
-      
+
       <div className="flex items-center gap-1 flex-1">
         {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href || 
+          const Icon = item.icon as React.ElementType;
+          const isActive = pathname === item.href ||
             (item.href === "/reports" && pathname?.startsWith("/reports")) ||
             (item.href === "/add-ons" && pathname === "/add-ons");
-          
+
           return (
             <Link
               key={item.id || item.href}

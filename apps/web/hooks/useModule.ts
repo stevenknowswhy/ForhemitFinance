@@ -7,6 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import { useOrg } from "@/app/contexts/OrgContext";
+import { useUser } from "@clerk/nextjs";
 
 export interface ModuleAccess {
   hasAccess: boolean;
@@ -41,12 +42,18 @@ export function useModule(moduleId: string): {
  * Check if user has access to a module (with user-level overrides)
  */
 export function useModuleAccess(moduleId: string): ModuleAccess {
-  const { currentOrgId, currentUserId } = useOrg();
+  const { currentOrgId } = useOrg();
+  const { user } = useUser();
+  const currentUserId = user?.id;
 
   const access = useQuery(
     api.modules.checkModuleAccess,
     currentOrgId && currentUserId
-      ? { orgId: currentOrgId, moduleId, userId: currentUserId }
+      ? {
+        orgId: currentOrgId,
+        userId: currentUserId as any,
+        moduleId,
+      }
       : "skip"
   );
 

@@ -99,11 +99,11 @@ export function ReceiptPreview({
             <span
               className={cn(
                 "text-xs font-medium",
-                getConfidenceColor(ocrData.confidence)
+                getConfidenceColor(ocrData.confidence || 0)
               )}
-              title={`Confidence: ${Math.round(ocrData.confidence * 100)}%`}
+              title={`Confidence: ${Math.round((ocrData.confidence || 0) * 100)}%`}
             >
-              {getConfidenceIndicator(ocrData.confidence)} {Math.round(ocrData.confidence * 100)}%
+              {getConfidenceIndicator(ocrData.confidence || 0)} {Math.round((ocrData.confidence || 0) * 100)}%
             </span>
           </div>
 
@@ -233,7 +233,7 @@ export function ReceiptPreview({
           </div>
 
           {/* Confidence Warning */}
-          {ocrData.confidence < 0.70 && (
+          {(ocrData.confidence || 0) < 0.70 && (
             <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
               <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
               <div className="flex-1">

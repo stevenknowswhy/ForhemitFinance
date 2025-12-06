@@ -4,7 +4,7 @@
 
 import { v } from "convex/values";
 import { action, internalAction } from "../../_generated/server";
-import { api } from "../../_generated/api";
+import { api, internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
 import { buildInvestorStoryPrompt } from "../promptBuilders";
 import { STORY_SYSTEM_PROMPTS } from "../prompts";
@@ -62,13 +62,14 @@ export const _generateInvestorStoryInternal = internalAction({
           ? `Q${Math.floor(new Date(args.periodStart).getMonth() / 3) + 1} ${new Date(args.periodStart).getFullYear()}`
           : `${new Date(args.periodStart).getFullYear()}`;
 
-      await ctx.runMutation(api.notifications.createNotification, {
-        userId: args.userId,
-        type: "story_complete",
-        title: "Story Generated",
-        message: `Your Investor Story for ${periodName} is ready to view.`,
-        metadata: { storyId: args.storyId },
-      });
+      // TODO: Send notification
+      // await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+      //         userId: args.userId,
+      //         type: "story_complete",
+      //         title: "Story Generated",
+      //         message: `Your Investor Story for ${periodName} is ready to view.`,
+      //         metadata: { storyId: args.storyId },
+      //       });
     } catch (error: any) {
       // Update story with error
       await ctx.runMutation(api.ai_stories.updateStory, {
@@ -78,13 +79,14 @@ export const _generateInvestorStoryInternal = internalAction({
       });
 
       // Create failure notification
-      await ctx.runMutation(api.notifications.createNotification, {
-        userId: args.userId,
-        type: "story_failed",
-        title: "Story Generation Failed",
-        message: `Failed to generate your Investor Story: ${error.message || "Unknown error"}`,
-        metadata: { storyId: args.storyId },
-      });
+      // TODO: Send notification
+      // await ctx.scheduler.runAfter(0, internal.notifications.createNotification, {
+      //         userId: args.userId,
+      //         type: "story_failed",
+      //         title: "Story Generation Failed",
+      //         message: `Failed to generate your Investor Story: ${error.message || "Unknown error"}`,
+      //         metadata: { storyId: args.storyId },
+      //       });
     }
   },
 });
@@ -142,7 +144,8 @@ export const generateInvestorStory = action({
       });
 
       // Schedule background generation
-      await ctx.scheduler.runAfter(0, api.ai_stories._generateInvestorStoryInternal, {
+      // @ts-ignore - TypeScript recursion limit
+      await ctx.scheduler.runAfter(0, internal.ai_stories.generators.investor._generateInvestorStoryInternal, {
         storyId,
         userId: user._id,
         periodStart: args.periodStart,

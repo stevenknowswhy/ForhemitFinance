@@ -328,7 +328,8 @@ export default defineSchema({
       v.literal("pending"),
       v.literal("posted"),
       v.literal("cleared"),
-      v.literal("reconciled")
+      v.literal("reconciled"),
+      v.literal("scheduled")
     )), // Made optional for backward compatibility with existing data
     isPending: v.optional(v.boolean()), // Legacy field for backward compatibility
     postedAt: v.optional(v.number()), // Timestamp when moved from pending to posted
@@ -932,7 +933,8 @@ export default defineSchema({
     source: v.union(
       v.literal("free"),
       v.literal("paid"),
-      v.literal("promo")
+      v.literal("promo"),
+      v.literal("trial")
     ),
 
     // Trial tracking
@@ -1054,4 +1056,84 @@ export default defineSchema({
   })
     .index("by_addon", ["addonId"])
     .index("by_report_type", ["reportType"]),
+
+  // Vendors (Bill Pay)
+  vendors: defineTable({
+    orgId: v.id("organizations"),
+    name: v.string(),
+    contactEmail: v.optional(v.string()),
+    contactPhone: v.optional(v.string()),
+    defaultCategoryId: v.optional(v.id("accounts")),
+    defaultPaymentAccountId: v.optional(v.id("accounts")),
+    metadata: v.optional(v.any()), // JSON storage for extra fields
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_name", ["orgId", "name"]),
+
+  // Bills (Bill Pay)
+  bills: defineTable({
+    orgId: v.id("organizations"),
+    vendorId: v.id("vendors"),
+    amount: v.number(),
+    currency: v.string(), // "USD"
+    dueDate: v.number(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("open"),
+      v.literal("scheduled"),
+      v.literal("paid"),
+      v.literal("failed"),
+      v.literal("canceled")
+    ),
+    frequency: v.union(
+      v.literal("one_time"),
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("yearly")
+    ),
+    autoPay: v.boolean(),
+    paymentAccountId: v.optional(v.id("accounts")), // Source of funds
+    transactionId: v.optional(v.id("transactions_raw")), // Link to paid transaction
+    // Accounting
+    glDebitAccountId: v.optional(v.id("accounts")), // Expense account
+    glCreditAccountId: v.optional(v.id("accounts")), // AP or Bank account
+    // Metadata
+    notes: v.optional(v.string()),
+    attachmentUrls: v.optional(v.array(v.string())),
+    createdByUserId: v.id("users"),
+    paidAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_vendor", ["vendorId"])
+    .index("by_status", ["status"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_due_date", ["dueDate"]),
+
+  // Subscriptions (Bill Pay)
+  subscriptions_billpay: defineTable({
+    orgId: v.id("organizations"),
+    vendorId: v.id("vendors"),
+    name: v.string(), // e.g. "Pro Plan"
+    amount: v.number(),
+    currency: v.string(),
+    interval: v.union(
+      v.literal("monthly"),
+      v.literal("yearly"),
+      v.literal("custom")
+    ),
+    nextRunDate: v.number(),
+    lastRunDate: v.optional(v.number()),
+    isActive: v.boolean(),
+    defaultCategoryId: v.optional(v.id("accounts")),
+    defaultPaymentAccountId: v.optional(v.id("accounts")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_vendor", ["vendorId"])
+    .index("by_active", ["isActive"]),
 });

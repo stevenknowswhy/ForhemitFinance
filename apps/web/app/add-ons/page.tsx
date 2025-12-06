@@ -63,6 +63,7 @@ export default function AddOnsPage() {
 
   // Get available add-ons
   const addons = useQuery(
+    // @ts-ignore
     api.addons.getAvailableAddons,
     currentOrgId ? {
       orgId: currentOrgId,

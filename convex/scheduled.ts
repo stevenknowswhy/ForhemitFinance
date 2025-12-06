@@ -1,146 +1,89 @@
-/**
- * Scheduled Actions for AI Stories Auto-Generation
- * Automatically generates stories at the end of each period
- */
 
-import { internalAction } from "./_generated/server";
-import { cronJobs } from "convex/server";
-import { api } from "./_generated/api";
+import { internalMutation } from "./_generated/server";
+import { v } from "convex/values";
 
 /**
- * Calculate period start and end dates
+ * Process active bill subscriptions
+ * Runs daily to generate bills for subscriptions due today or in the past
  */
-function calculatePeriodDates(
-  periodType: "monthly" | "quarterly" | "annually"
-): { periodStart: number; periodEnd: number } {
-  const now = new Date();
-  let periodStart: Date;
-  let periodEnd: Date;
+export const processBillSubscriptions = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
 
-  if (periodType === "monthly") {
-    // Previous month
-    periodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    periodStart.setHours(0, 0, 0, 0);
-    periodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-    periodEnd.setHours(23, 59, 59, 999);
-  } else if (periodType === "quarterly") {
-    // Previous quarter
-    const currentQuarter = Math.floor(now.getMonth() / 3);
-    const previousQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
-    const previousQuarterYear = currentQuarter === 0 ? now.getFullYear() - 1 : now.getFullYear();
-    periodStart = new Date(previousQuarterYear, previousQuarter * 3, 1);
-    periodStart.setHours(0, 0, 0, 0);
-    periodEnd = new Date(previousQuarterYear, (previousQuarter + 1) * 3, 0);
-    periodEnd.setHours(23, 59, 59, 999);
-  } else {
-    // Previous year
-    periodStart = new Date(now.getFullYear() - 1, 0, 1);
-    periodStart.setHours(0, 0, 0, 0);
-    periodEnd = new Date(now.getFullYear() - 1, 11, 31);
-    periodEnd.setHours(23, 59, 59, 999);
-  }
+    // 1. Find all active subscriptions due
+    // Note: In a large scale app, we'd want to paginate or use an index on nextRunDate
+    // For now, we'll scan all, or better, use an index if we had one.
+    // We do not have a global index on nextRunDate across all orgs, only by org.
+    // We can scan all subscriptions table since it's likely manageable for this scale, 
+    // or iterate through orgs. Scanning table is easiest for MVP.
+    const subscriptions = await ctx.db
+      .query("subscriptions_billpay")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
 
-  return {
-    periodStart: periodStart.getTime(),
-    periodEnd: periodEnd.getTime(),
-  };
-}
+    const dueSubscriptions = subscriptions.filter(s => s.nextRunDate <= now);
 
-/**
- * Generate stories for all users
- */
-async function generateStoriesForAllUsers(
-  ctx: any,
-  periodType: "monthly" | "quarterly" | "annually"
-) {
-  // Get all users
-  const users = await ctx.db.query("users").collect();
+    if (dueSubscriptions.length === 0) {
+      console.log("No subscriptions due to process.");
+      return;
+    }
 
-  const { periodStart, periodEnd } = calculatePeriodDates(periodType);
+    console.log(`Processing ${dueSubscriptions.length} due subscriptions...`);
 
-  for (const user of users) {
-    try {
-      // Check if story already exists for this period
-      const existingStories = await ctx.db
-        .query("ai_stories")
-        .withIndex("by_user", (q: any) => q.eq("userId", user._id))
-        .collect();
+    for (const sub of dueSubscriptions) {
+      // Find a valid user to attribute this to (Org Owner)
+      // We need this because createdByUserId is required.
+      const membership = await ctx.db
+        .query("memberships")
+        .withIndex("by_org", (q) => q.eq("orgId", sub.orgId))
+        .filter(q => q.eq(q.field("role"), "ORG_OWNER"))
+        .first();
 
-      const hasStory = existingStories.some(
-        (s: any) =>
-          s.periodType === periodType &&
-          s.periodStart === periodStart &&
-          s.periodEnd === periodEnd
-      );
+      const userId = membership?.userId;
 
-      if (hasStory) {
-        // Story already exists, skip
+      if (!userId) {
+        console.error(`Could not find owner for org ${sub.orgId}, skipping bill generation.`);
         continue;
       }
 
-      // Generate all three story types
-      await ctx.runAction(api.ai_stories.generateCompanyStory, {
-        periodStart,
-        periodEnd,
-        periodType,
+      // Create Bill
+      await ctx.db.insert("bills", {
+        orgId: sub.orgId,
+        vendorId: sub.vendorId,
+        amount: sub.amount,
+        currency: sub.currency,
+        dueDate: now, // Due today
+        status: "open",
+        frequency: sub.interval === "custom" ? "one_time" : (sub.interval as any),
+        autoPay: false,
+        paymentAccountId: sub.defaultPaymentAccountId,
+        glDebitAccountId: sub.defaultCategoryId,
+        notes: `Auto-generated from subscription: ${sub.name}`,
+        createdByUserId: userId,
+        createdAt: now,
+        updatedAt: now,
       });
 
-      await ctx.runAction(api.ai_stories.generateBankerStory, {
-        periodStart,
-        periodEnd,
-        periodType,
-      });
+      // Determine next run date
+      let nextRun = new Date(sub.nextRunDate);
+      if (sub.interval === "monthly") {
+        nextRun.setMonth(nextRun.getMonth() + 1);
+      } else if (sub.interval === "yearly") {
+        nextRun.setFullYear(nextRun.getFullYear() + 1);
+      } else {
+        // Custom or one-time, maybe disable?
+        // For "custom", we might just disable after one run or need logic.
+        // Let's default to monthly fallback or disable.
+        nextRun.setMonth(nextRun.getMonth() + 1);
+      }
 
-      await ctx.runAction(api.ai_stories.generateInvestorStory, {
-        periodStart,
-        periodEnd,
-        periodType,
+      // Update Subscription
+      await ctx.db.patch(sub._id, {
+        lastRunDate: now,
+        nextRunDate: nextRun.getTime(),
+        updatedAt: now,
       });
-    } catch (error) {
-      console.error(`Failed to generate stories for user ${user._id}:`, error);
-      // Continue with next user
     }
   }
-}
-
-/**
- * Monthly story generation
- * Runs on the 1st of each month at 2 AM
- */
-export const monthlyStoryGeneration = internalAction({
-  handler: async (ctx) => {
-    await generateStoriesForAllUsers(ctx, "monthly");
-  },
 });
-
-/**
- * Quarterly story generation
- * Runs on the 1st of each quarter (Jan, Apr, Jul, Oct) at 3 AM
- */
-export const quarterlyStoryGeneration = internalAction({
-  handler: async (ctx) => {
-    const now = new Date();
-    const month = now.getMonth();
-    // Only run on first month of each quarter: Jan (0), Apr (3), Jul (6), Oct (9)
-    if (month === 0 || month === 3 || month === 6 || month === 9) {
-      await generateStoriesForAllUsers(ctx, "quarterly");
-    }
-  },
-});
-
-/**
- * Annual story generation
- * Runs on January 1st at 4 AM
- */
-export const annualStoryGeneration = internalAction({
-  handler: async (ctx) => {
-    const now = new Date();
-    const month = now.getMonth();
-    // Only run in January (month 0)
-    if (month === 0) {
-      await generateStoriesForAllUsers(ctx, "annually");
-    }
-  },
-});
-
-// Cron jobs are configured in convex/crons.ts

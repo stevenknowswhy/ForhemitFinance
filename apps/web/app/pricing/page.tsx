@@ -5,10 +5,12 @@
  * Shows subscription tiers with Clerk billing integration
  */
 
-import { useState } from "react";
-import { useUser } from "@clerk/nextjs";
 import { Header } from "../components/Header";
 import Link from "next/link";
+import { SocialProof } from "@/components/SocialProof";
+import { FAQ } from "@/components/FAQ";
+import { SiteFooter } from "@/components/SiteFooter";
+import { useUser } from "@clerk/nextjs"; import { useState } from "react";
 
 const PRICING_PLANS = {
   light: {
@@ -75,7 +77,7 @@ export default function PricingPage() {
 
     setSelectedPlan(plan);
     setIsLoading(true);
-    
+
     try {
       // Create Stripe checkout session
       const response = await fetch("/api/checkout", {
@@ -95,7 +97,7 @@ export default function PricingPage() {
       }
 
       const { url } = await response.json();
-      
+
       // Redirect to Stripe checkout
       if (url) {
         window.location.href = url;
@@ -143,9 +145,8 @@ export default function PricingPage() {
               className="relative inline-flex h-6 w-11 items-center rounded-full bg-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
-                  billingPeriod === "annual" ? "translate-x-6" : "translate-x-1"
-                }`}
+                className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${billingPeriod === "annual" ? "translate-x-6" : "translate-x-1"
+                  }`}
               />
             </button>
             <span className={`text-sm ${billingPeriod === "annual" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
@@ -241,6 +242,10 @@ export default function PricingPage() {
           </p>
         </div>
       </div>
+
+      <SocialProof />
+      <FAQ />
+      <SiteFooter />
     </div>
   );
 }

@@ -134,11 +134,11 @@ export const getBankLenderReportData = query({
 
     return {
       businessProfile: businessProfile ? {
-        businessName: businessProfile.businessName,
-        businessType: businessProfile.businessType,
-        ein: businessProfile.ein,
-        industry: businessProfile.industry,
-        address: businessProfile.address,
+        businessName: businessProfile.legalBusinessName || businessProfile.dbaTradeName,
+        businessType: businessProfile.businessCategory,
+        ein: businessProfile.einTaxId,
+        industry: businessProfile.businessCategory,
+        address: businessProfile.registeredAddress || businessProfile.headquartersAddress,
       } : null,
       accounts: accounts.map((a: any) => ({
         name: a.name,

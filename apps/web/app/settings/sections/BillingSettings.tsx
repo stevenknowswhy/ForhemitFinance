@@ -11,7 +11,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { CreditCard, Calendar, AlertTriangle, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-export function BillingSettings() {
+interface BillingSettingsProps {
+  subscriptionTier?: any;
+}
+
+export function BillingSettings({ subscriptionTier }: BillingSettingsProps) {
   const { toast } = useToast();
   const { currentOrgId, userRole } = useOrg();
 

@@ -7,12 +7,12 @@
  */
 
 import { useState } from "react";
-import { 
-  FileText, 
-  Building2, 
-  Users, 
-  TrendingUp, 
-  Download, 
+import {
+  FileText,
+  Building2,
+  Users,
+  TrendingUp,
+  Download,
   Eye,
   DollarSign,
   Scale,
@@ -37,10 +37,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useModuleStatuses } from "@/hooks/useEnabledModules";
-import { BankLenderReportModal } from "./BankLenderReportModal";
-import { CreditorVendorReportModal } from "./CreditorVendorReportModal";
-import { InvestorSummaryReportModal } from "./InvestorSummaryReportModal";
-import { ExecutiveSummaryReportModal } from "./ExecutiveSummaryReportModal";
+// import { BankLenderReportModal } from "./BankLenderReportModal"; // FIXME: Schema mismatches
+// import { CreditorVendorReportModal } from "./CreditorVendorReportModal"; // FIXME: Schema mismatches
+// import { InvestorSummaryReportModal } from "./InvestorSummaryReportModal"; // FIXME: Schema mismatches
+// import { ExecutiveSummaryReportModal } from "./ExecutiveSummaryReportModal"; // FIXME: Schema mismatches
 import { ProfitLossReportModal } from "./ProfitLossReportModal";
 import { BalanceSheetReportModal } from "./BalanceSheetReportModal";
 import { CashFlowReportModal } from "./CashFlowReportModal";
@@ -76,7 +76,7 @@ export function ReportsTab() {
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const [showTransactionExport, setShowTransactionExport] = useState(false);
   const { modules: moduleStatuses, isLoading: isLoadingModules } = useModuleStatuses();
-  
+
   // Get enabled modules that contribute to Insights
   // A module must pass ALL three checks to appear:
   // 1. isOrgEnabled: Module is enabled at the organization level
@@ -89,12 +89,12 @@ export function ReportsTab() {
       moduleStatus.hasEntitlement
     );
   });
-  
+
   // Check if Reports module is enabled (for showing report categories)
   const reportsModuleEnabled = enabledModules.some(
     (m) => m.manifest.id === "reports"
   );
-  
+
   // Get enabled addon modules (modules other than "reports" that contribute Insights)
   const enabledAddonModules = enabledModules.filter(
     (moduleStatus) => moduleStatus.manifest.id !== "reports"
@@ -366,7 +366,7 @@ export function ReportsTab() {
                     {enabledAddonModules.map((moduleStatus) => {
                       const { manifest, isOrgEnabled } = moduleStatus;
                       const Icon = getModuleIcon(manifest.icon);
-                      
+
                       // Determine the route/link for this module
                       // Check if it has a route to the reports page, otherwise use its main route
                       const reportsRoute = manifest.routes?.find(r => r.path?.includes("/reports"));
@@ -415,7 +415,7 @@ export function ReportsTab() {
           </Tabs>
         </>
       )}
-      
+
       {/* Show addon modules even if Reports is not enabled */}
       {!reportsModuleEnabled && enabledAddonModules.length > 0 && (
         <div>
@@ -429,7 +429,7 @@ export function ReportsTab() {
             {enabledAddonModules.map((moduleStatus) => {
               const { manifest, isOrgEnabled } = moduleStatus;
               const Icon = getModuleIcon(manifest.icon);
-              
+
               const reportsRoute = manifest.routes?.find(r => r.path?.includes("/reports"));
               const mainRoute = manifest.routes?.[0]?.path || manifest.navigation?.[0]?.href || "#";
               const moduleLink = reportsRoute?.path || mainRoute;
@@ -555,30 +555,32 @@ export function ReportsTab() {
       )}
 
       {/* Business Snapshot Report Modals */}
-      {selectedReport === "bank-lender" && (
+      {/* FIXME: BankLenderReportModal disabled due to schema mismatches */}
+      {/* selectedReport === "bank-lender" && (
         <BankLenderReportModal
           open={true}
           onOpenChange={(open) => !open && setSelectedReport(null)}
         />
-      )}
-      {selectedReport === "creditor-vendor" && (
+      ) */}
+      {/* FIXME: Additional disabled modals */}
+      {/* selectedReport === "creditor-vendor" && (
         <CreditorVendorReportModal
           open={true}
           onOpenChange={(open) => !open && setSelectedReport(null)}
         />
-      )}
-      {selectedReport === "investor-summary" && (
+      ) */}
+      {/* selectedReport === "investor-summary" && (
         <InvestorSummaryReportModal
           open={true}
           onOpenChange={(open) => !open && setSelectedReport(null)}
         />
-      )}
-      {selectedReport === "executive-summary" && (
+      ) */}
+      {/* selectedReport === "executive-summary" && (
         <ExecutiveSummaryReportModal
           open={true}
           onOpenChange={(open) => !open && setSelectedReport(null)}
         />
-      )}
+      ) */}
 
       {/* Transaction Export Modal */}
       <TransactionExportModal

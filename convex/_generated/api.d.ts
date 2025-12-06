@@ -32,6 +32,8 @@ import type * as ai_stories_prompts from "../ai_stories/prompts.js";
 import type * as ai_stories_queries from "../ai_stories/queries.js";
 import type * as ai_stories_types from "../ai_stories/types.js";
 import type * as audit from "../audit.js";
+import type * as bill_subscriptions from "../bill_subscriptions.js";
+import type * as bills from "../bills.js";
 import type * as businessProfiles from "../businessProfiles.js";
 import type * as crons from "../crons.js";
 import type * as data_reset from "../data_reset.js";
@@ -120,6 +122,7 @@ import type * as transactions_actions from "../transactions/actions.js";
 import type * as transactions_mutations from "../transactions/mutations.js";
 import type * as transactions_queries from "../transactions/queries.js";
 import type * as users from "../users.js";
+import type * as vendors from "../vendors.js";
 
 import type {
   ApiFromModules,
@@ -152,6 +155,8 @@ declare const fullApi: ApiFromModules<{
   "ai_stories/queries": typeof ai_stories_queries;
   "ai_stories/types": typeof ai_stories_types;
   audit: typeof audit;
+  bill_subscriptions: typeof bill_subscriptions;
+  bills: typeof bills;
   businessProfiles: typeof businessProfiles;
   crons: typeof crons;
   data_reset: typeof data_reset;
@@ -240,6 +245,7 @@ declare const fullApi: ApiFromModules<{
   "transactions/mutations": typeof transactions_mutations;
   "transactions/queries": typeof transactions_queries;
   users: typeof users;
+  vendors: typeof vendors;
 }>;
 
 /**

@@ -16,7 +16,7 @@ export const getMockTransactionAnalytics = query({
   args: {
     days: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return null;
@@ -104,7 +104,7 @@ export const getFilteredTransactionAnalytics = query({
     filterType: v.optional(v.union(v.literal("business"), v.literal("personal"), v.literal("all"))),
     orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     // Phase 1: Use org context helper
     const { userId, orgId } = await getOrgContext(ctx, args.orgId);
     await requirePermission(ctx, userId, orgId, PERMISSIONS.VIEW_FINANCIALS);
@@ -190,7 +190,7 @@ export const getFilteredTransactions = query({
     limit: v.optional(v.number()),
     filterType: v.optional(v.union(v.literal("business"), v.literal("personal"), v.literal("all"))),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
@@ -236,7 +236,7 @@ export const getFilteredTransactions = query({
  */
 export const getAccountClassificationStats = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return null;

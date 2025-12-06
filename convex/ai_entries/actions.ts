@@ -5,6 +5,7 @@
 import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api } from "../_generated/api";
+import { Id } from "../_generated/dataModel";
 import { suggestEntry } from "./helpers";
 import { buildSystemPrompt } from "./prompts";
 import { Account, EntrySuggestion, TransactionContext } from "./types";
@@ -32,13 +33,13 @@ export const generateAISuggestions = action({
       throw new Error("No organization context available");
     }
     const orgId = orgContext.orgId;
-    
+
     // Fetch business context
     const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext, { orgId });
-    
+
     // Get user's accounts
     const accounts = await ctx.runQuery(api.accounts.getAll, { orgId });
-    
+
     // Convert Convex accounts to accounting engine format
     const engineAccounts: Account[] = accounts.map((acc: any) => ({
       id: acc._id,
@@ -59,13 +60,13 @@ export const generateAISuggestions = action({
     }> = [];
 
     // If isBusiness is not set, generate suggestions for both
-    const contexts = args.isBusiness === undefined 
+    const contexts = args.isBusiness === undefined
       ? [true, false] // Generate for both business and personal
       : [args.isBusiness]; // Generate for selected type only
 
     for (const isBusiness of contexts) {
       // Combine description with user description if provided
-      const fullDescription = args.userDescription 
+      const fullDescription = args.userDescription
         ? `${args.description}. ${args.userDescription}`
         : args.description;
 
@@ -106,11 +107,11 @@ export const generateAISuggestions = action({
         inferredCategory = categoryResult.category;
         const isNewCategory = (categoryResult as any).isNewCategory || false;
         console.log("[AI Suggestions] Inferred category:", inferredCategory, "method:", categoryResult.method, "isNewCategory:", isNewCategory);
-        
+
         // Store isNewCategory flag for later use in suggestions
         (transactionContext as any).isNewCategory = isNewCategory;
       }
-      
+
       // Update transaction context with inferred category
       if (inferredCategory) {
         transactionContext.category = [inferredCategory];
@@ -118,7 +119,7 @@ export const generateAISuggestions = action({
 
       // Get suggestion from accounting engine with override support and business context
       const engineSuggestion = suggestEntry(
-        transactionContext, 
+        transactionContext,
         engineAccounts,
         args.overrideDebitAccountId,
         args.overrideCreditAccountId,
@@ -128,7 +129,7 @@ export const generateAISuggestions = action({
           accountingMethod: businessContext.accountingMethod,
         } : null
       );
-      
+
       console.log("[AI Suggestions] Engine suggestion:", {
         debitAccount: engineAccounts.find(a => a.id === engineSuggestion.debitAccountId)?.name,
         creditAccount: engineAccounts.find(a => a.id === engineSuggestion.creditAccountId)?.name,
@@ -184,16 +185,16 @@ export const generateAISuggestions = action({
 
       // Use the inferred category (already set in transactionContext.category)
       // This was determined by AI or keyword matching earlier
-      const suggestedCategory = inferredCategory || args.category || 
-        (debitAccount?.type === 'expense' ? debitAccount.name : 
-         creditAccount?.type === 'income' ? creditAccount.name : 
-         isBusiness ? 'Business Expense' : 'Personal Expense');
-      
+      const suggestedCategory = inferredCategory || args.category ||
+        (debitAccount?.type === 'expense' ? debitAccount.name :
+          creditAccount?.type === 'income' ? creditAccount.name :
+            isBusiness ? 'Business Expense' : 'Personal Expense');
+
       console.log("[AI Suggestions] Final category selected:", suggestedCategory);
-      
+
       // Check if this is a new category (from transactionContext or inferred)
       const suggestionIsNewCategory = (transactionContext as any).isNewCategory || false;
-      
+
       suggestions.push({
         isBusiness,
         category: suggestedCategory,
@@ -221,7 +222,7 @@ export const suggestDoubleEntry = action({
     transactionId: v.id("transactions_raw"),
     orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ proposedEntryId: Id<"entries_proposed">; suggestion: EntrySuggestion }> => {
     // Get org context
     const orgContext = await ctx.runQuery(api.helpers.index.getOrgContextQuery, {
       orgId: args.orgId,
@@ -248,12 +249,12 @@ export const suggestDoubleEntry = action({
     const businessContext = await ctx.runQuery(api.ai_entries.getBusinessContext, {
       orgId: orgContext.orgId, // Phase 1: Pass orgId
     });
-    
+
     // Get user's accounts - org-scoped
     const accounts = await ctx.runQuery(api.accounts.getAll, {
       orgId: orgContext.orgId, // Phase 1: Pass orgId
     });
-    
+
     // Convert Convex accounts to accounting engine format
     const engineAccounts: Account[] = accounts.map((acc: any) => ({
       id: acc._id,
@@ -291,9 +292,9 @@ export const suggestDoubleEntry = action({
 
     // Get initial suggestion from accounting engine with business context
     const engineSuggestion = suggestEntry(
-      transactionContext, 
-      engineAccounts, 
-      undefined, 
+      transactionContext,
+      engineAccounts,
+      undefined,
       undefined,
       businessContext ? {
         businessType: businessContext.businessType,
@@ -427,9 +428,9 @@ export const getAlternativeSuggestions = action({
 
     // Get primary suggestion with business context
     const primary = suggestEntry(
-      transactionContext, 
-      engineAccounts, 
-      undefined, 
+      transactionContext,
+      engineAccounts,
+      undefined,
       undefined,
       businessContext ? {
         businessType: businessContext.businessType,

@@ -34,7 +34,7 @@ export function useSimilarTransactions(
   useEffect(() => {
     if (similarTransactions && similarTransactions.length > 0 && !autoPopulated && !useAI && transactionType !== null && isBusiness !== null) {
       const similar = similarTransactions[0];
-      
+
       // Smart category auto-population with conversational feedback
       if (!category) {
         if (similar.category && similar.category.length > 0) {
@@ -62,7 +62,7 @@ export function useSimilarTransactions(
     }
   }, [title, setAutoPopulated]);
 
-  const hasSimilarTransaction = similarTransactions && similarTransactions.length > 0;
+  const hasSimilarTransaction = (similarTransactions && similarTransactions.length > 0) ?? false;
 
   return {
     similarTransactions,

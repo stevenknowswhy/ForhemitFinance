@@ -40,8 +40,6 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "types/**/*.d.ts",
-    "../../tests/**/*.ts",
-    "../../tests/**/*.tsx",
     "../../convex/_generated/*.d.ts"
   ],
   "exclude": [

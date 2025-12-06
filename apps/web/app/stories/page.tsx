@@ -6,6 +6,7 @@
  */
 
 import { useEffect } from "react";
+import { Id } from "@convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
 
 export default function StoriesPage() {

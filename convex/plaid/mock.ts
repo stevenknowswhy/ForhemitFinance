@@ -21,7 +21,7 @@ export const mockConnectBank = mutation({
     accountTypes: v.array(v.string()),
     orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     // Phase 1: Use org context helper
     const { userId, orgId } = await getOrgContext(ctx, args.orgId);
     await requirePermission(ctx, userId, orgId, PERMISSIONS.MANAGE_INTEGRATIONS);
@@ -179,7 +179,7 @@ export const generateMockTransactions = internalMutation({
     accountIds: v.array(v.id("accounts")),
     bankId: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     return await generateMockTransactionsInternal(ctx, args);
   },
 });
@@ -189,7 +189,7 @@ export const generateMockTransactions = internalMutation({
  */
 export const getMockAccounts = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
@@ -228,7 +228,7 @@ export const getMockTransactions = query({
     category: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];

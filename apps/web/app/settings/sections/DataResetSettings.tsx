@@ -153,8 +153,7 @@ export function DataResetSettings() {
 
         // Wait a moment for the toast to show, then sign out
         setTimeout(async () => {
-          await signOut();
-          router.push("/sign-in");
+          await signOut({ redirectUrl: "/sign-in" });
         }, 2000);
       } else {
         throw new Error("Failed to perform factory reset");

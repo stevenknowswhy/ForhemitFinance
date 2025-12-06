@@ -23,7 +23,7 @@ export interface UseTransactionSubmissionHandlerProps {
   lineItems: LineItem[];
   debitAccountId: string;
   creditAccountId: string;
-  
+
   // State setters
   setTitle: (title: string) => void;
   setAmount: (amount: string) => void;
@@ -37,7 +37,7 @@ export interface UseTransactionSubmissionHandlerProps {
   setShowItemization: (show: boolean) => void;
   setErrors: (updater: (prev: any) => any) => void;
   setCompletedFields: React.Dispatch<React.SetStateAction<Set<string>>>;
-  
+
   // Submission state
   isSubmitting: boolean;
   setIsSubmitting: (submitting: boolean) => void;
@@ -46,7 +46,7 @@ export interface UseTransactionSubmissionHandlerProps {
   showSaveSuccess: boolean;
   setShowSaveSuccess: (show: boolean) => void;
   setCreatedTransactionId: (id: Id<"transactions_raw"> | null) => void;
-  
+
   // AI state
   useAI: boolean;
   aiSuggestedCategory: string | undefined;
@@ -56,26 +56,34 @@ export interface UseTransactionSubmissionHandlerProps {
   setAutoPopulated: (populated: boolean) => void;
   autoPopulatedFromReceipt: boolean;
   setAutoPopulatedFromReceipt: (populated: boolean) => void;
-  
+
   splitHook: any;
-  
+
   // Duplicate state
   duplicateDismissed: boolean;
   setDuplicateDismissed: (dismissed: boolean) => void;
-  
+
   // Receipt state
   showReceiptUpload: boolean;
   setShowReceiptUpload: (show: boolean) => void;
-  
+
   // Similar transactions
   similarTransactions: any[] | undefined;
-  
+
   // Accounts
   userAccounts: any[] | undefined;
-  
+
   // Callbacks
   onClose: () => void;
   resetForm: () => void;
+  validateForm: (
+    title: string,
+    amount: string,
+    date: string,
+    category: string,
+    showItemization: boolean,
+    lineItems: LineItem[]
+  ) => boolean;
 }
 
 export interface UseTransactionSubmissionHandlerReturn {
@@ -131,6 +139,7 @@ export function useTransactionSubmissionHandler({
   userAccounts,
   onClose,
   resetForm,
+  validateForm,
 }: UseTransactionSubmissionHandlerProps): UseTransactionSubmissionHandlerReturn {
   const { setShowSplitPrompt, setSplitSuggestions } = splitHook;
   const createTransaction = useMutation(api.transactions.createRaw);
@@ -140,11 +149,11 @@ export function useTransactionSubmissionHandler({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm(title, amount, date, category, showItemization, lineItems)) {
       return;
     }
-    
+
     if (!title || !amount || transactionType === null || isBusiness === null) return;
 
     setIsSubmitting(true);
@@ -164,18 +173,18 @@ export function useTransactionSubmissionHandler({
       // Prepare line items for itemization
       const formattedLineItems = showItemization && lineItems.length > 0
         ? lineItems.map((item: any) => ({
-            description: item.description.trim(),
-            category: item.category.trim() || undefined,
-            amount: parseFloat(item.amount) || 0,
-            tax: item.tax ? parseFloat(item.tax) : undefined,
-            tip: item.tip ? parseFloat(item.tip) : undefined,
-            debitAccountId: item.debitAccountId ? item.debitAccountId as Id<"accounts"> : undefined,
-            creditAccountId: item.creditAccountId ? item.creditAccountId as Id<"accounts"> : undefined,
-          }))
+          description: item.description.trim(),
+          category: item.category.trim() || undefined,
+          amount: parseFloat(item.amount) || 0,
+          tax: item.tax ? parseFloat(item.tax) : undefined,
+          tip: item.tip ? parseFloat(item.tip) : undefined,
+          debitAccountId: item.debitAccountId ? item.debitAccountId as Id<"accounts"> : undefined,
+          creditAccountId: item.creditAccountId ? item.creditAccountId as Id<"accounts"> : undefined,
+        }))
         : undefined;
 
       // Combine title and description for transaction description
-      const fullDescription = description 
+      const fullDescription = description
         ? `${title}. ${description}`
         : title;
 
@@ -185,10 +194,10 @@ export function useTransactionSubmissionHandler({
           // Check if user changed category from AI suggestion
           const categoryChanged = aiSuggestedCategory && category !== aiSuggestedCategory;
           // Check if user changed accounts from AI suggestion
-          const accountsChanged = (debitAccountId && creditAccountId) && 
-            (debitAccountId !== aiSuggestions?.[0]?.debitAccountId || 
-             creditAccountId !== aiSuggestions?.[0]?.creditAccountId);
-          
+          const accountsChanged = (debitAccountId && creditAccountId) &&
+            (debitAccountId !== aiSuggestions?.[0]?.debitAccountId ||
+              creditAccountId !== aiSuggestions?.[0]?.creditAccountId);
+
           if (categoryChanged || accountsChanged || description) {
             await saveCorrection({
               merchant: title,
@@ -247,7 +256,7 @@ export function useTransactionSubmissionHandler({
 
       // Show minimal success indicator
       setShowSaveSuccess(true);
-      
+
       // Show success toast
       toast({
         title: "Transaction saved",
@@ -268,7 +277,7 @@ export function useTransactionSubmissionHandler({
         setDebitAccountId("");
         setCreditAccountId("");
         setLineItems([]);
-        setErrors({});
+        setErrors(() => ({}));
         setAutoPopulated(false);
         setAutoPopulatedFromReceipt(false);
         setDuplicateDismissed(false);

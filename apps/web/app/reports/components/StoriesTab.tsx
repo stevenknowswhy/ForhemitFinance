@@ -15,7 +15,7 @@ import { StoryGenerator } from "./StoryGenerator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, BookOpen, AlertTriangle, Download, Loader2, Database, AlertCircle, CheckCircle2 } from "lucide-react";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { generateAndDownloadPDF } from "@/lib/storyPdfGenerator";
 import { useNotifications } from "@/app/contexts/NotificationContext";
 
@@ -79,7 +79,7 @@ export function StoriesTab() {
 
   const handleDownloadPDF = async (story: any) => {
     if (!story) return;
-    
+
     try {
       // Convert story to PDF format
       const pdfStory = {
@@ -93,9 +93,9 @@ export function StoriesTab() {
         generatedAt: new Date(story.createdAt),
         periodStart: new Date(story.periodStart),
         periodEnd: new Date(story.periodEnd),
-        role: story.storyType === "company" ? "Chief Financial Officer" : 
-              story.storyType === "banker" ? "Credit Risk Analyst" : 
-              "Venture Capital Investment Partner",
+        role: story.storyType === "company" ? "Chief Financial Officer" :
+          story.storyType === "banker" ? "Credit Risk Analyst" :
+            "Venture Capital Investment Partner",
       };
 
       // Extract financial data from keyMetrics or use defaults
@@ -133,12 +133,12 @@ export function StoriesTab() {
   const handleExport = async (storyId: Id<"ai_stories">, format: "pdf" | "email" | "csv" | "shareable-link") => {
     const exportKey = `${storyId}-${format}`;
     if (isExporting[exportKey]) return;
-    
+
     setIsExporting((prev) => ({ ...prev, [exportKey]: true }));
-    
+
     try {
       const result = await exportStory({ storyId, format });
-      
+
       if (format === "csv") {
         // Download CSV file
         const blob = new Blob([result.content], { type: result.mimeType });
@@ -150,7 +150,7 @@ export function StoriesTab() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         toast({
           title: "Export successful",
           description: `Story exported as ${result.filename}`,
@@ -160,7 +160,7 @@ export function StoriesTab() {
         const blob = new Blob([result.content], { type: result.mimeType });
         const url = URL.createObjectURL(blob);
         window.open(url, "_blank");
-        
+
         toast({
           title: "Email template ready",
           description: "Email template opened in new window. Copy the content to your email client.",
@@ -186,7 +186,7 @@ export function StoriesTab() {
           const { generateReportPDF } = await import("@/lib/pdfUtils");
           const filename = `${result.data?.title || storyId}`.replace(/[^a-z0-9]/gi, "_").toLowerCase();
           const periodLabel = result.data?.period || "";
-          
+
           // Get the story view element
           const storyViewElement = document.querySelector('[data-story-view]') as HTMLElement;
           if (storyViewElement) {
@@ -196,7 +196,7 @@ export function StoriesTab() {
               result.data?.title,
               periodLabel
             );
-            
+
             toast({
               title: "PDF generated",
               description: "PDF has been downloaded successfully.",
@@ -222,7 +222,7 @@ export function StoriesTab() {
               ` : ""}
             `;
             document.body.appendChild(tempDiv);
-            
+
             await generateReportPDF(
               tempDiv,
               filename,
@@ -230,7 +230,7 @@ export function StoriesTab() {
               periodLabel
             );
             document.body.removeChild(tempDiv);
-            
+
             toast({
               title: "PDF generated",
               description: "PDF has been downloaded successfully.",
@@ -265,13 +265,13 @@ export function StoriesTab() {
     type: "company" | "banker" | "investor";
     periodType: "monthly" | "quarterly" | "annually";
   }> = [
-    { type: "company", periodType: "monthly" },
-    { type: "banker", periodType: "monthly" },
-    { type: "investor", periodType: "monthly" },
-    { type: "company", periodType: "quarterly" },
-    { type: "banker", periodType: "quarterly" },
-    { type: "investor", periodType: "quarterly" },
-  ];
+      { type: "company", periodType: "monthly" },
+      { type: "banker", periodType: "monthly" },
+      { type: "investor", periodType: "monthly" },
+      { type: "company", periodType: "quarterly" },
+      { type: "banker", periodType: "quarterly" },
+      { type: "investor", periodType: "quarterly" },
+    ];
 
   const selectedStoryData = stories?.find((s: any) => s._id === selectedStory);
 
@@ -328,28 +328,28 @@ export function StoriesTab() {
       for (let i = 0; i < storyTypes.length; i++) {
         const { type, periodType } = storyTypes[i];
         setGenerationProgress({ current: i + 1, total: storyTypes.length });
-        
+
         const dateRange = calculateDateRange(periodType);
-        
+
         try {
           let result;
           if (type === "company") {
-            result = await generateCompanyStory({ 
-              periodStart: dateRange.start, 
-              periodEnd: dateRange.end, 
-              periodType 
+            result = await generateCompanyStory({
+              periodStart: dateRange.start,
+              periodEnd: dateRange.end,
+              periodType
             });
           } else if (type === "banker") {
-            result = await generateBankerStory({ 
-              periodStart: dateRange.start, 
-              periodEnd: dateRange.end, 
-              periodType 
+            result = await generateBankerStory({
+              periodStart: dateRange.start,
+              periodEnd: dateRange.end,
+              periodType
             });
           } else {
-            result = await generateInvestorStory({ 
-              periodStart: dateRange.start, 
-              periodEnd: dateRange.end, 
-              periodType 
+            result = await generateInvestorStory({
+              periodStart: dateRange.start,
+              periodEnd: dateRange.end,
+              periodType
             });
           }
 
@@ -381,9 +381,9 @@ export function StoriesTab() {
   // Handle Download All PDFs
   const handleDownloadAllPDFs = async () => {
     if (!stories || stories.length === 0) return;
-    
+
     setIsDownloadingAll(true);
-    
+
     try {
       const generatedStories = storyTypes
         .map(({ type, periodType }) => getLatestStory(type, periodType))
@@ -410,9 +410,9 @@ export function StoriesTab() {
         generatedAt: new Date(story.createdAt),
         periodStart: new Date(story.periodStart),
         periodEnd: new Date(story.periodEnd),
-        role: story.storyType === "company" ? "Chief Financial Officer" : 
-              story.storyType === "banker" ? "Credit Risk Analyst" : 
-              "Venture Capital Investment Partner",
+        role: story.storyType === "company" ? "Chief Financial Officer" :
+          story.storyType === "banker" ? "Credit Risk Analyst" :
+            "Venture Capital Investment Partner",
       }));
 
       // Get financial data (simplified - you may need to fetch this from Convex)
@@ -457,10 +457,10 @@ export function StoriesTab() {
               Automatically generated financial narratives • Last updated:{" "}
               {lastUpdated
                 ? new Date(lastUpdated).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
                 : "Never"}
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -563,7 +563,7 @@ export function StoriesTab() {
             const generationStatus = story?.generationStatus;
             const isPending = generationStatus === "pending" || generationStatus === "generating";
             const isFailed = generationStatus === "failed";
-            
+
             return (
               <StoryCard
                 key={`${type}-${periodType}`}

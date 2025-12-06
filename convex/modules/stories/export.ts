@@ -27,7 +27,7 @@ export const exportStory = action({
     }
 
     // Get business profile for export formatting
-    const businessProfile = await ctx.runQuery(api.businessProfiles.getBusinessProfile);
+    const businessProfile = await ctx.runQuery(api.businessProfiles.getBusinessProfile, { orgId: story.orgId });
 
     const periodLabel = `${new Date(story.periodStart).toLocaleDateString()} to ${new Date(story.periodEnd).toLocaleDateString()}`;
 

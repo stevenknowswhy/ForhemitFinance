@@ -22,7 +22,7 @@ export const storeInstitution = mutation({
     accessTokenEncrypted: v.string(),
     orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId parameter
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const { userId, orgId } = await getOrgContext(ctx, args.orgId);
     await requirePermission(ctx, userId, orgId, PERMISSIONS.MANAGE_INTEGRATIONS);
 
@@ -48,7 +48,7 @@ export const getInstitution = query({
   args: {
     institutionId: v.id("institutions"),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     return await ctx.db.get(args.institutionId);
   },
 });
@@ -58,7 +58,7 @@ export const getInstitution = query({
  */
 export const getUserInstitutions = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<any> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -90,7 +90,7 @@ export const updateLastSync = mutation({
   args: {
     institutionId: v.id("institutions"),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     await ctx.db.patch(args.institutionId, {
       lastSyncAt: Date.now(),
     });
@@ -105,7 +105,7 @@ export const updateInstitutionStatus = mutation({
     institutionId: v.id("institutions"),
     status: v.union(v.literal("active"), v.literal("error"), v.literal("disconnected")),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     await ctx.db.patch(args.institutionId, {
       syncStatus: args.status,
     });
@@ -119,7 +119,7 @@ export const getInstitutionByItemId = query({
   args: {
     plaidItemId: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     return await ctx.db
       .query("institutions")
       .withIndex("by_plaid_item", (q) => q.eq("plaidItemId", args.plaidItemId))
@@ -134,7 +134,7 @@ export const syncTransactionsByItemId = action({
   args: {
     itemId: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     // Find institution by Plaid item ID
     const institution = await ctx.runQuery(api.plaid.getInstitutionByItemId, {
       plaidItemId: args.itemId,
@@ -174,7 +174,7 @@ export const updateItemStatus = mutation({
       })
     ),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const institution = await ctx.db
       .query("institutions")
       .withIndex("by_plaid_item", (q) => q.eq("plaidItemId", args.itemId))

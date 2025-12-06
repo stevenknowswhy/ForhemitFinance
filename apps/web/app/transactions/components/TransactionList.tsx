@@ -47,18 +47,22 @@ export function TransactionList({
                 <span
                   className={cn(
                     "text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0",
-                    transaction.isBusiness === true
-                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                      : transaction.isBusiness === false
-                      ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                    transaction.status === "scheduled"
+                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+                      : transaction.isBusiness === true
+                        ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                        : transaction.isBusiness === false
+                          ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                          : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
                   )}
                 >
-                  {transaction.isBusiness === true
-                    ? "Business"
-                    : transaction.isBusiness === false
-                    ? "Personal"
-                    : "Mixed"}
+                  {transaction.status === "scheduled"
+                    ? "Scheduled"
+                    : transaction.isBusiness === true
+                      ? "Business"
+                      : transaction.isBusiness === false
+                        ? "Personal"
+                        : "Mixed"}
                 </span>
               </div>
               <div className="text-sm text-muted-foreground truncate">{transaction.description}</div>
@@ -109,4 +113,3 @@ export function TransactionList({
     </div>
   );
 }
-

@@ -30,4 +30,11 @@ const crons = cronJobs();
 //   api.scheduled.annualStoryGeneration
 // );
 
+// Register daily subscription processing
+// crons.daily(
+//     "processBillSubscriptions",
+//     { hourUTC: 9, minuteUTC: 0 }, // Run at 9 AM UTC
+//     api.scheduled.processBillSubscriptions // FIXME: Function doesn't exist
+// );
+
 export default crons;

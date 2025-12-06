@@ -204,7 +204,7 @@ export default function SuperAdminDashboard() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            orgs.map((org) => (
+                            orgs.map((org: any) => (
                                 <TableRow key={org._id}>
                                     <TableCell className="font-medium">{org.name}</TableCell>
                                     <TableCell className="capitalize">{org.type}</TableCell>

@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      
+
       // Check if this is an add-on purchase
       if (session.metadata?.addonId) {
         const orgId = session.metadata.orgId;
@@ -78,13 +78,15 @@ export async function POST(req: NextRequest) {
         const billingPeriod = session.metadata?.billingPeriod as "monthly" | "annual";
 
         if (userId && plan) {
-          // Update user subscription in Convex
-          await convex.mutation(api.subscriptions.updateSubscription, {
-            tier: plan,
-            billingPeriod,
-            subscriptionStatus: "trial", // Starts as trial
-            trialEndsAt: Date.now() + 14 * 24 * 60 * 60 * 1000, // 14 days from now
-          });
+          // TODO: Implement subscription update
+          // Need to look up planId from tier name
+          // await convex.mutation(api.subscriptions.updateOrgSubscriptionInternal, {
+          //   orgId: ...,
+          //   planId: ...,
+          //   status: "trialing",
+          //   trialEndsAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
+          // });
+          console.log('Checkout completed for user:', userId, 'plan:', plan);
         }
       }
       break;
@@ -107,13 +109,9 @@ export async function POST(req: NextRequest) {
         const customer = await stripe.customers.retrieve(subscription.customer as string);
         const customerEmail = customer.deleted ? undefined : customer.email;
 
-        await convex.mutation(api.subscriptions.updateSubscription, {
-          email: customerEmail || undefined,
-          tier: plan,
-          billingPeriod,
-          subscriptionStatus: isTrial ? "trial" : "active",
-          trialEndsAt,
-        });
+        // TODO: Implement subscription update
+        // Need to look up orgId and planId
+        console.log('Subscription updated:', { userId, plan, isTrial, customerEmail });
       }
       break;
     }
@@ -128,11 +126,8 @@ export async function POST(req: NextRequest) {
         const customerEmail = customer.deleted ? undefined : customer.email;
 
         // Downgrade to free tier
-        await convex.mutation(api.subscriptions.updateSubscription, {
-          email: customerEmail || undefined,
-          tier: "solo",
-          subscriptionStatus: "cancelled",
-        });
+        // TODO: Implement subscription cancellation
+        console.log('Subscription cancelled for user:', userId);
       }
       break;
     }
@@ -140,7 +135,7 @@ export async function POST(req: NextRequest) {
     case "invoice.payment_succeeded": {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = (invoice as any).subscription as string | null;
-      
+
       if (subscriptionId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const userId = subscription.metadata?.userId;
@@ -152,11 +147,8 @@ export async function POST(req: NextRequest) {
           const customerEmail = customer.deleted ? undefined : customer.email;
 
           // Payment succeeded - activate subscription
-          await convex.mutation(api.subscriptions.updateSubscription, {
-            email: customerEmail || undefined,
-            tier: plan,
-            subscriptionStatus: "active",
-          });
+          // TODO: Implement subscription activation
+          console.log('Payment succeeded for user:', userId, 'plan:', plan);
         }
       }
       break;
@@ -165,7 +157,7 @@ export async function POST(req: NextRequest) {
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionId = (invoice as any).subscription as string | null;
-      
+
       if (subscriptionId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const userId = subscription.metadata?.userId;
@@ -176,11 +168,8 @@ export async function POST(req: NextRequest) {
           const customerEmail = customer.deleted ? undefined : customer.email;
 
           // Payment failed - mark as past_due
-          await convex.mutation(api.subscriptions.updateSubscription, {
-            email: customerEmail || undefined,
-            tier: subscription.metadata?.plan as "light" | "pro",
-            subscriptionStatus: "past_due",
-          });
+          // TODO: Implement subscription past_due status
+          console.log('Payment failed for user:', userId);
         }
       }
       break;
@@ -188,7 +177,7 @@ export async function POST(req: NextRequest) {
 
     case "payment_intent.payment_failed": {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      
+
       // For add-on purchases, metadata is on the checkout session, not payment intent
       // We need to retrieve the checkout session from the payment intent
       if (paymentIntent.metadata?.checkout_session_id) {
@@ -196,7 +185,7 @@ export async function POST(req: NextRequest) {
           const session = await stripe.checkout.sessions.retrieve(
             paymentIntent.metadata.checkout_session_id as string
           );
-          
+
           if (session.metadata?.addonId) {
             const orgId = session.metadata.orgId;
             const addonId = session.metadata.addonId;

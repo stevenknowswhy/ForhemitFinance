@@ -15,7 +15,7 @@ export const syncAccounts = action({
   args: {
     institutionId: v.id("institutions"),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ success: boolean; accountCount: number }> => {
     const institution = await ctx.runQuery(api.plaid.getInstitution, {
       institutionId: args.institutionId,
     });
@@ -91,7 +91,7 @@ export const upsertAccount = mutation({
     mask: v.optional(v.string()),
     subtype: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const institution = await ctx.db.get(args.institutionId);
     if (!institution) {
       throw new Error("Institution not found");

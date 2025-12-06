@@ -15,7 +15,7 @@ export const syncTransactions = action({
   args: {
     institutionId: v.id("institutions"),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const institution = await ctx.runQuery(api.plaid.getInstitution, {
       institutionId: args.institutionId,
     });

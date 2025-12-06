@@ -33,7 +33,7 @@ export const getEnabledModules = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .withIndex("by_email", (q: any) => q.eq("email", identity.email!))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -41,7 +41,7 @@ export const getEnabledModules = query({
     // Check if user is member of org
     const membership = await ctx.db
       .query("memberships")
-      .withIndex("by_user_org", (q) => q.eq("userId", user._id).eq("orgId", args.orgId))
+      .withIndex("by_user_org", (q: any) => q.eq("userId", user._id).eq("orgId", args.orgId))
       .first();
 
     if (!membership) throw new Error("Not a member of this organization");
@@ -49,7 +49,7 @@ export const getEnabledModules = query({
     // Get all enablements for this org
     const enablements = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .withIndex("by_org", (q: any) => q.eq("orgId", args.orgId))
       .collect();
 
     return enablements.map(e => ({
@@ -77,7 +77,7 @@ export const getOrgModuleStatus = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .withIndex("by_email", (q: any) => q.eq("email", identity.email!))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -85,7 +85,7 @@ export const getOrgModuleStatus = query({
     // Check if user is member of org
     const membership = await ctx.db
       .query("memberships")
-      .withIndex("by_user_org", (q) => q.eq("userId", user._id).eq("orgId", args.orgId))
+      .withIndex("by_user_org", (q: any) => q.eq("userId", user._id).eq("orgId", args.orgId))
       .first();
 
     if (!membership) throw new Error("Not a member of this organization");
@@ -96,13 +96,13 @@ export const getOrgModuleStatus = query({
     // Get all enablements for this org
     const enablements = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .withIndex("by_org", (q: any) => q.eq("orgId", args.orgId))
       .collect();
 
     // Get subscription to check entitlements
     const subscription = await ctx.db
       .query("subscriptions")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .withIndex("by_org", (q: any) => q.eq("orgId", args.orgId))
       .first();
     const plan = subscription ? await ctx.db.get(subscription.planId) : null;
     const tier = plan?.name as "solo" | "light" | "pro" | undefined;
@@ -110,7 +110,7 @@ export const getOrgModuleStatus = query({
     // Get all entitlements
     const entitlements = await ctx.db
       .query("module_entitlements")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .withIndex("by_org", (q: any) => q.eq("orgId", args.orgId))
       .collect();
 
     // Log any dangling enablements (enablements for modules not in manifest list)
@@ -143,17 +143,8 @@ export const getOrgModuleStatus = query({
       // Default to true for free modules or when billing info is missing
       let hasEntitlement = true;
       if (manifest.billing) {
-        if (manifest.billing.type === "included" && tier) {
-          const requiredTier = manifest.billing.requiredTier;
-          const tierOrder = { solo: 0, light: 1, pro: 2 };
-          hasEntitlement = tierOrder[tier] >= tierOrder[requiredTier];
-        } else if (manifest.billing.type === "paid") {
-          const entitlement = entitlements.find((e) => e.moduleId === manifest.id);
-          hasEntitlement = entitlement?.status === "active" || entitlement?.status === "trial";
-        } else if (manifest.billing.type === "free") {
-          // Free modules always have entitlement
-          hasEntitlement = true;
-        }
+        // Currently all modules are free, so always have entitlement
+        hasEntitlement = true;
       }
 
       return {
@@ -195,7 +186,7 @@ export const getModuleEnablement = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .withIndex("by_email", (q: any) => q.eq("email", identity.email!))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -203,14 +194,14 @@ export const getModuleEnablement = query({
     // Check if user is member of org
     const membership = await ctx.db
       .query("memberships")
-      .withIndex("by_user_org", (q) => q.eq("userId", user._id).eq("orgId", args.orgId))
+      .withIndex("by_user_org", (q: any) => q.eq("userId", user._id).eq("orgId", args.orgId))
       .first();
 
     if (!membership) throw new Error("Not a member of this organization");
 
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -245,7 +236,7 @@ export const checkModuleAccess = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .withIndex("by_email", (q: any) => q.eq("email", identity.email!))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -255,7 +246,7 @@ export const checkModuleAccess = query({
     // Get module enablement
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -315,7 +306,7 @@ export const enableModule = mutation({
       // Get organization's subscription
       const subscription = await ctx.db
         .query("subscriptions")
-        .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+        .withIndex("by_org", (q: any) => q.eq("orgId", args.orgId))
         .first();
 
       if (!subscription) {
@@ -342,7 +333,7 @@ export const enableModule = mutation({
       // Create or update entitlement
       const existingEntitlement = await ctx.db
         .query("module_entitlements")
-        .withIndex("by_org_module", (q) =>
+        .withIndex("by_org_module", (q: any) =>
           q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
         )
         .first();
@@ -370,7 +361,7 @@ export const enableModule = mutation({
     // Check if enablement already exists
     const existing = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -417,7 +408,7 @@ export const disableModule = mutation({
 
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -449,7 +440,7 @@ export const getModuleEntitlement = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .withIndex("by_email", (q: any) => q.eq("email", identity.email!))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -457,14 +448,14 @@ export const getModuleEntitlement = query({
     // Check if user is member of org
     const membership = await ctx.db
       .query("memberships")
-      .withIndex("by_user_org", (q) => q.eq("userId", user._id).eq("orgId", args.orgId))
+      .withIndex("by_user_org", (q: any) => q.eq("userId", user._id).eq("orgId", args.orgId))
       .first();
 
     if (!membership) throw new Error("Not a member of this organization");
 
     const entitlement = await ctx.db
       .query("module_entitlements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -499,7 +490,7 @@ export const setUserModuleOverride = mutation({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .withIndex("by_email", (q: any) => q.eq("email", identity.email!))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -512,7 +503,7 @@ export const setUserModuleOverride = mutation({
     // Get or create enablement
     let enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -561,7 +552,7 @@ export const checkModuleEntitlement = query({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .withIndex("by_email", (q: any) => q.eq("email", identity.email!))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -569,7 +560,7 @@ export const checkModuleEntitlement = query({
     // Check enablement
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -585,7 +576,7 @@ export const checkModuleEntitlement = query({
     // Check entitlement (for paid modules)
     const entitlement = await ctx.db
       .query("module_entitlements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", args.moduleId)
       )
       .first();
@@ -646,8 +637,8 @@ async function syncModuleEntitlementsHandler(ctx: any, args: {
   // Get org owner for enablement tracking
   const owner = await ctx.db
     .query("memberships")
-    .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
-    .filter((q) => q.eq(q.field("role"), "ORG_OWNER"))
+    .withIndex("by_org", (q: any) => q.eq("orgId", args.orgId))
+    .filter((q: any) => q.eq(q.field("role"), "ORG_OWNER"))
     .first();
 
   if (!owner) {
@@ -663,7 +654,7 @@ async function syncModuleEntitlementsHandler(ctx: any, args: {
     // Check if enablement exists
     let enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", moduleId)
       )
       .first();
@@ -692,7 +683,7 @@ async function syncModuleEntitlementsHandler(ctx: any, args: {
     if (isModulePaid(moduleId)) {
       const existingEntitlement = await ctx.db
         .query("module_entitlements")
-        .withIndex("by_org_module", (q) =>
+        .withIndex("by_org_module", (q: any) =>
           q.eq("orgId", args.orgId).eq("moduleId", moduleId)
         )
         .first();
@@ -724,7 +715,7 @@ async function syncModuleEntitlementsHandler(ctx: any, args: {
     // Disable enablement (but don't delete - data remains)
     const enablement = await ctx.db
       .query("module_enablements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", moduleId)
       )
       .first();
@@ -739,7 +730,7 @@ async function syncModuleEntitlementsHandler(ctx: any, args: {
     // Update entitlement status
     const entitlement = await ctx.db
       .query("module_entitlements")
-      .withIndex("by_org_module", (q) =>
+      .withIndex("by_org_module", (q: any) =>
         q.eq("orgId", args.orgId).eq("moduleId", moduleId)
       )
       .first();

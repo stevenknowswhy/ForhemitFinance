@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 import { X, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Loader2, FileText } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { cn } from "@/lib/utils";
 import { Id } from "@convex/_generated/dataModel";
 
 interface ReceiptViewerProps {
@@ -188,7 +189,7 @@ export function ReceiptViewer({ transactionId, initialIndex = 0, onClose }: Rece
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             )}
-            
+
             {currentIsImage ? (
               <img
                 src={currentFileUrl}
@@ -230,7 +231,7 @@ export function ReceiptViewer({ transactionId, initialIndex = 0, onClose }: Rece
               {receipts.map((receipt: any, index: number) => {
                 const thumbUrl = getFileUrl(receipt);
                 const thumbIsImage = isImage(receipt);
-                
+
                 return (
                   <button
                     key={receipt._id}

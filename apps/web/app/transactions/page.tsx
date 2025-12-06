@@ -13,7 +13,6 @@ import { useRouter } from "next/navigation";
 import { DesktopNavigation } from "../components/DesktopNavigation";
 import { BottomNavigation } from "../components/BottomNavigation";
 import { AddTransactionButton } from "../dashboard/components/AddTransactionButton";
-import { ApprovalQueue } from "../dashboard/components/ApprovalQueue";
 import { ReceiptUploadModal } from "../dashboard/components/ReceiptUploadModal";
 import { ReceiptViewer } from "../dashboard/components/ReceiptViewer";
 import { useToast } from "@/lib/use-toast";
@@ -26,18 +25,27 @@ import { Pagination } from "./components/Pagination";
 import { EditTransactionModal } from "./components/EditTransactionModal";
 import { DeleteConfirmModal } from "./components/DeleteConfirmModal";
 import { Id } from "@convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { BillsView } from "./components/BillsView";
+import { VendorsView } from "./components/VendorsView";
+import { SubscriptionsView } from "./components/SubscriptionsView";
+
+type Tab = "activity" | "bills" | "vendors" | "subscriptions";
 
 export default function TransactionsPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
-  
+
   // Check onboarding status
   const onboardingStatus = useQuery(api.onboarding.getOnboardingStatus);
-  
-  // Query transactions
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<Tab>("activity");
+
+  // Query transactions (Activity Tab)
   const { orgId } = useOrgIdOptional();
   const mockTransactions = useQuery(api.plaid.getMockTransactions, { limit: 100 });
-  const pendingEntries = useQuery(api.transactions.getPendingTransactions, orgId ? { orgId } : "skip");
 
   // Transaction filters
   const filters = useTransactionFilters();
@@ -99,6 +107,13 @@ export default function TransactionsPage() {
     return null;
   }
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "activity", label: "Activity" },
+    { id: "bills", label: "Bills" },
+    { id: "vendors", label: "Vendors" },
+    { id: "subscriptions", label: "Subscriptions" },
+  ];
+
   return (
     <div className="min-h-screen bg-background pb-20 lg:pb-8">
       {/* Mobile Header */}
@@ -112,60 +127,90 @@ export default function TransactionsPage() {
       <DesktopNavigation />
 
       <div className="max-w-7xl mx-auto p-4 md:p-8">
-        {/* Search and Filter Section */}
-        <TransactionFilters
-          filters={{
-            ...filters,
-            showCategoryDropdown: filters.showCategoryDropdown,
-            showDatePicker: filters.showDatePicker,
-            categoryDropdownRef: filters.categoryDropdownRef,
-            datePickerRef: filters.datePickerRef,
-          }}
-          allCategories={allCategories}
-          onSearchChange={filters.setSearchQuery}
-          onToggleSort={filters.toggleSort}
-          onToggleFilterType={filters.toggleFilterType}
-          onToggleBusinessFilter={filters.toggleBusinessFilter}
-          onCategorySelect={(category) => {
-            filters.setSelectedCategory(category);
-            filters.setShowCategoryDropdown(false);
-          }}
-          onCategoryDropdownToggle={() => {
-            filters.setShowCategoryDropdown(!filters.showCategoryDropdown);
-            filters.setShowDatePicker(false);
-          }}
-        />
+        {/* Sub-Navigation Pills */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {tabs.map((tab) => (
+            <Button
+              key={tab.id}
+              variant={activeTab === tab.id ? "default" : "outline"}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "rounded-full px-6",
+                activeTab === tab.id ? "" : "bg-background hover:bg-muted"
+              )}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
 
-        {/* Transactions List */}
-        {mockTransactions?.length === 0 ? (
-          <div className="bg-card rounded-lg shadow border border-border">
-            <div className="p-8 text-center text-muted-foreground">
-              No transactions yet. Connect a bank account to see your transactions.
+        {/* Content Area */}
+        <div className="mt-6">
+          {activeTab === "activity" && (
+            <div className="space-y-6">
+              {/* Search and Filter Section */}
+              <TransactionFilters
+                filters={{
+                  ...filters,
+                  showCategoryDropdown: filters.showCategoryDropdown,
+                  showDatePicker: filters.showDatePicker,
+                  categoryDropdownRef: filters.categoryDropdownRef,
+                  datePickerRef: filters.datePickerRef,
+                }}
+                allCategories={allCategories}
+                onSearchChange={filters.setSearchQuery}
+                onToggleSort={filters.toggleSort}
+                onToggleFilterType={filters.toggleFilterType}
+                onToggleBusinessFilter={filters.toggleBusinessFilter}
+                onCategorySelect={(category) => {
+                  filters.setSelectedCategory(category);
+                  filters.setShowCategoryDropdown(false);
+                }}
+                onCategoryDropdownToggle={() => {
+                  filters.setShowCategoryDropdown(!filters.showCategoryDropdown);
+                  filters.setShowDatePicker(false);
+                }}
+              />
+
+              {/* Transactions List */}
+              {mockTransactions?.length === 0 ? (
+                <div className="bg-card rounded-lg shadow border border-border">
+                  <div className="p-8 text-center text-muted-foreground">
+                    No transactions yet. Connect a bank account to see your transactions.
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <TransactionList
+                    transactions={paginatedTransactions}
+                    onEdit={setEditingTransaction}
+                    onDelete={setShowDeleteConfirm}
+                    onUploadReceipt={setShowReceiptUpload}
+                    onViewReceipt={setShowReceiptViewer}
+                  />
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filteredTransactions.length}
+                    onPageChange={setCurrentPage}
+                  />
+                </>
+              )}
             </div>
-          </div>
-        ) : (
-          <>
-            <TransactionList
-              transactions={paginatedTransactions}
-              onEdit={setEditingTransaction}
-              onDelete={setShowDeleteConfirm}
-              onUploadReceipt={setShowReceiptUpload}
-              onViewReceipt={setShowReceiptViewer}
-            />
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              itemsPerPage={itemsPerPage}
-              totalItems={filteredTransactions.length}
-              onPageChange={setCurrentPage}
-            />
-          </>
-        )}
+          )}
+
+          {activeTab === "bills" && <BillsView />}
+
+          {activeTab === "vendors" && <VendorsView />}
+
+          {activeTab === "subscriptions" && <SubscriptionsView />}
+        </div>
       </div>
-      
-      {/* Universal "+" Button */}
-      <AddTransactionButton />
-      
+
+      {/* Universal "+" Button (Only show on activity tab for now, or adapt it) */}
+      {activeTab === "activity" && <AddTransactionButton />}
+
       {/* Bottom Navigation (Mobile only) */}
       <BottomNavigation />
 

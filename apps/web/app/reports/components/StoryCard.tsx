@@ -108,11 +108,11 @@ export function StoryCard({
   const Icon = config.icon;
   const periodColor = periodTypeColors[periodType];
   // Handle annually by falling back to quarterly config (annually not yet implemented in STORY_CONFIGS)
-  const storyConfig = periodType === "annually" 
+  const storyConfig = periodType === "annually"
     ? STORY_CONFIGS[storyType]?.["quarterly"]
     : (periodType === "monthly" || periodType === "quarterly")
-    ? STORY_CONFIGS[storyType]?.[periodType]
-    : undefined;
+      ? STORY_CONFIGS[storyType]?.[periodType]
+      : undefined;
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString("en-US", {
@@ -206,7 +206,7 @@ export function StoryCard({
             <p className="text-xs text-muted-foreground mb-4">Analyzing financial data and crafting narrative</p>
             {/* Progress bar with animation */}
             <div className="w-full max-w-xs mx-auto bg-muted rounded-full h-2 mb-2 overflow-hidden">
-              <div 
+              <div
                 className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500 ease-out relative"
                 style={{ width: "60%" }}
               >
@@ -286,7 +286,7 @@ export function StoryCard({
                 onClick={onRegenerate}
                 variant="outline"
                 size="icon"
-                disabled={isGenerating || generationStatus === "generating" || generationStatus === "pending"}
+                disabled={isGenerating}
                 title="Regenerate story"
               >
                 {isGenerating ? (
