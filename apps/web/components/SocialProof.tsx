@@ -42,7 +42,7 @@ export function SocialProof() {
                             Trusted by <span className="text-muted-foreground">industry leaders.</span>
                         </h2>
                         <p className="text-xl text-muted-foreground mb-8 max-w-lg">
-                            Don't just take our word for it. Here's what our clients have to say about their experiences working with us. Real stories from real partners who've achieved real results.
+                            Don&apos;t just take our word for it. Here&apos;s what our clients have to say about their experiences working with us. Real stories from real partners who&apos;ve achieved real results.
                         </p>
 
                         <div className="flex items-center gap-4 mb-8">

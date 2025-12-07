@@ -150,7 +150,7 @@ export function AppDisplaySettings() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Dashboard layout customization coming soon. You'll be able to choose from preset layouts or create your own.
+            Dashboard layout customization coming soon. You&apos;ll be able to choose from preset layouts or create your own.
           </p>
         </CardContent>
       </Card>

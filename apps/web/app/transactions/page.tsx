@@ -27,11 +27,12 @@ import { DeleteConfirmModal } from "./components/DeleteConfirmModal";
 import { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PaymentCalendar } from "./components/PaymentCalendar";
 import { BillsView } from "./components/BillsView";
 import { VendorsView } from "./components/VendorsView";
 import { SubscriptionsView } from "./components/SubscriptionsView";
 
-type Tab = "activity" | "bills" | "vendors" | "subscriptions";
+type Tab = "activity" | "bills" | "calendar" | "vendors" | "subscriptions";
 
 export default function TransactionsPage() {
   const { user, isLoaded } = useUser();
@@ -108,10 +109,11 @@ export default function TransactionsPage() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "activity", label: "Activity" },
+    { id: "activity", label: "Transactions" },
+    { id: "calendar", label: "Calendar" },
     { id: "bills", label: "Bills" },
-    { id: "vendors", label: "Vendors" },
     { id: "subscriptions", label: "Subscriptions" },
+    { id: "vendors", label: "Vendors" },
   ];
 
   return (
@@ -200,16 +202,20 @@ export default function TransactionsPage() {
             </div>
           )}
 
+          {activeTab === "calendar" && <PaymentCalendar />}
+
           {activeTab === "bills" && <BillsView />}
 
-          {activeTab === "vendors" && <VendorsView />}
-
           {activeTab === "subscriptions" && <SubscriptionsView />}
+
+          {activeTab === "vendors" && <VendorsView />}
         </div>
       </div>
 
-      {/* Universal "+" Button (Only show on activity tab for now, or adapt it) */}
+      {/* Universal "+" Button */}
       {activeTab === "activity" && <AddTransactionButton />}
+
+
 
       {/* Bottom Navigation (Mobile only) */}
       <BottomNavigation />

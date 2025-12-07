@@ -35,6 +35,11 @@ export default function SuperAdminLayout({
             href: "/super-admin", // Same as dashboard for now
             icon: Building2,
         },
+        {
+            name: "Story Templates",
+            href: "/super-admin/templates",
+            icon: Users, // Using Users icon as placeholder or BookOpen if available
+        },
         // Add more items as needed
     ];
 

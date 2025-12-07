@@ -22,3 +22,7 @@ export { getVendorSpendAnalysisData } from "./modules/reports/vendorSpendAnalysi
 export { getTaxPreparationData } from "./modules/reports/taxPreparation";
 export { getYearEndAccountantPackData } from "./modules/reports/yearEndAccountantPack";
 export * from "./modules/reports/utils";
+
+// GAP-004: Report Templates & Seeding
+export * from "./reports/queries";
+export * from "./reports/seed";

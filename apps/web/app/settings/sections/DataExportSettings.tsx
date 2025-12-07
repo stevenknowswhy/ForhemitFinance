@@ -126,7 +126,7 @@ export function DataExportSettings() {
                   Delete All Data?
                 </DialogTitle>
                 <DialogDescription>
-                  This will permanently delete all your financial data, transactions, accounts, and settings. This action cannot be undone. You'll receive a confirmation email before the deletion is processed.
+                  This will permanently delete all your financial data, transactions, accounts, and settings. This action cannot be undone. You&apos;ll receive a confirmation email before the deletion is processed.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>

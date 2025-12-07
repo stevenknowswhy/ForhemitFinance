@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { STORY_CONFIGS } from "./storyConfig";
 import { GeneratedStoryView } from "./GeneratedStoryView";
 
 interface StoryCardProps {
@@ -32,6 +31,8 @@ interface StoryCardProps {
     keyMetrics?: Record<string, any>;
     insight?: string;
   };
+  role?: string;
+  focuses?: string[];
 }
 
 const storyTypeConfig = {
@@ -103,16 +104,12 @@ export function StoryCard({
   generationStatus,
   generationError,
   story,
+  role,
+  focuses,
 }: StoryCardProps) {
   const config = storyTypeConfig[storyType];
   const Icon = config.icon;
   const periodColor = periodTypeColors[periodType];
-  // Handle annually by falling back to quarterly config (annually not yet implemented in STORY_CONFIGS)
-  const storyConfig = periodType === "annually"
-    ? STORY_CONFIGS[storyType]?.["quarterly"]
-    : (periodType === "monthly" || periodType === "quarterly")
-      ? STORY_CONFIGS[storyType]?.[periodType]
-      : undefined;
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString("en-US", {
@@ -252,24 +249,26 @@ export function StoryCard({
 
             <h4 className="text-sm font-medium text-foreground mb-2">No story generated yet</h4>
 
-            {storyConfig && (
+            {role && (
               <>
                 <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
-                  Generate an AI-powered narrative as a <strong className="font-semibold text-foreground">{storyConfig.role}</strong> focusing on:
+                  Generate an AI-powered narrative as a <strong className="font-semibold text-foreground">{role}</strong> focusing on:
                 </p>
 
-                <ul className="text-xs text-muted-foreground space-y-1.5 mb-4 text-left max-w-xs mx-auto">
-                  {storyConfig.focuses?.map((focus, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-blue-500 dark:text-blue-400 mt-0.5 flex-shrink-0">•</span>
-                      <span className="leading-relaxed">{focus}</span>
-                    </li>
-                  ))}
-                </ul>
+                {focuses && (
+                  <ul className="text-xs text-muted-foreground space-y-1.5 mb-4 text-left max-w-xs mx-auto">
+                    {focuses.map((focus, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-blue-500 dark:text-blue-400 mt-0.5 flex-shrink-0">•</span>
+                        <span className="leading-relaxed">{focus}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </>
             )}
 
-            <p className="text-xs text-muted-foreground italic">Click "Generate" to create this story</p>
+            <p className="text-xs text-muted-foreground italic">Click &quot;Generate&quot; to create this story</p>
           </div>
         )}
       </CardContent>

@@ -1,40 +1,41 @@
 /**
  * Cron Jobs Configuration
- * Scheduled tasks for AI Stories auto-generation
+ * Scheduled tasks for AI insights and automated processing
  */
 
 import { cronJobs } from "convex/server";
-import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Monthly story generation - runs on the 1st of each month at 2:00 AM UTC
-// TODO: Fix API path for internalAction - internal actions may not be in public API
-// crons.monthly(
-//   "generateMonthlyStories",
-//   { day: 1, hourUTC: 2, minuteUTC: 0 },
-//   api.scheduled.monthlyStoryGeneration
-// );
+// ==========================================
+// AI INSIGHTS CRON JOBS
+// ==========================================
 
-// Quarterly story generation - runs on the 1st of each quarter (Jan, Apr, Jul, Oct) at 3:00 AM UTC  
-// crons.monthly(
-//   "generateQuarterlyStories",
-//   { day: 1, hourUTC: 3, minuteUTC: 0 },
-//   api.scheduled.quarterlyStoryGeneration
-// );
+// Monthly insight generation - runs on the 1st of each month at 2:00 AM UTC
+crons.monthly(
+    "generateMonthlyInsights",
+    { day: 1, hourUTC: 2, minuteUTC: 0 },
+    internal.ai_insights.generateMonthlyInsightsInternal
+);
 
-// Annual story generation - runs on January 1st at 4:00 AM UTC
-// crons.monthly(
-//   "generateAnnualStories",
-//   { day: 1, hourUTC: 4, minuteUTC: 0 },
-//   api.scheduled.annualStoryGeneration
-// );
+// Anomaly detection - runs daily at 6:00 AM UTC
+crons.daily(
+    "detectAnomalies",
+    { hourUTC: 6, minuteUTC: 0 },
+    internal.ai_insights.generateAnomalyAlertsInternal
+);
 
-// Register daily subscription processing
-// crons.daily(
-//     "processBillSubscriptions",
-//     { hourUTC: 9, minuteUTC: 0 }, // Run at 9 AM UTC
-//     api.scheduled.processBillSubscriptions // FIXME: Function doesn't exist
-// );
+// ==========================================
+// BILL PAY CRON JOBS
+// ==========================================
+
+// Process bill subscriptions - runs daily at 9:00 AM UTC
+crons.daily(
+    "processBillSubscriptions",
+    { hourUTC: 9, minuteUTC: 0 },
+    internal.scheduled.processBillSubscriptions
+);
 
 export default crons;
+

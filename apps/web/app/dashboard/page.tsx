@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { DesktopNavigation } from "../components/DesktopNavigation";
 import { OrgRouteGuard } from "../components/OrgRouteGuard";
-import { useOrgIdOptional } from "../hooks/useOrgId";
+import { useOrg } from "../contexts/OrgContext";
 import MockPlaidLink from "@tests/mocks/components/MockPlaidLink";
 import { DashboardCard } from "./components/DashboardCard";
 import { AddTransactionButton } from "./components/AddTransactionButton";
@@ -35,34 +35,10 @@ function DashboardContent() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [filterType, setFilterType] = useState<FilterType>("all");
-  const { orgId, isLoading: isOrgLoading } = useOrgIdOptional(); // Phase 1: Get orgId from context (optional during loading)
+  const { currentOrgId: orgId, isLoading: isOrgLoading } = useOrg();
 
   // Check onboarding status
   const onboardingStatus = useQuery(api.onboarding.getOnboardingStatus);
-
-  // Get analytics data with filter (Phase 1: Add orgId)
-  // Skip query if org is still loading or not available
-  const analytics = useQuery(
-    api.plaid.getFilteredTransactionAnalytics,
-    orgId && !isOrgLoading
-      ? {
-          days: 30,
-          filterType,
-          orgId, // Phase 1: Pass orgId
-        }
-      : "skip"
-  );
-
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <div className="text-muted-foreground">Loading...</div>
-        </div>
-      </div>
-    );
-  }
 
   // Redirect to sign-in if not authenticated (use useEffect to avoid render-time navigation)
   useEffect(() => {
@@ -77,7 +53,7 @@ function DashboardContent() {
   useEffect(() => {
     // Check if onboarding just completed (sessionStorage flag)
     const justCompletedOnboarding = typeof window !== 'undefined' && sessionStorage.getItem('justCompletedOnboarding') === 'true';
-    
+
     // Only redirect if we have no org AND onboarding status says not complete
     // AND onboarding didn't just complete (give it time to update)
     // If orgId exists, onboarding is definitely complete (even if query is stale)
@@ -89,6 +65,30 @@ function DashboardContent() {
       return () => clearTimeout(timeoutId);
     }
   }, [onboardingStatus, orgId, isOrgLoading, router]);
+
+  // Get analytics data with filter (Phase 1: Add orgId)
+  // Skip query if org is still loading or not available
+  const analytics = useQuery(
+    api.plaid.getFilteredTransactionAnalytics,
+    orgId && !isOrgLoading
+      ? {
+        days: 30,
+        filterType,
+        orgId, // Phase 1: Pass orgId
+      }
+      : "skip"
+  );
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (

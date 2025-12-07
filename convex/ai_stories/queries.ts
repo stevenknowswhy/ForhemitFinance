@@ -97,3 +97,129 @@ export const getStoryById = query({
   },
 });
 
+/**
+ * Get story template by story type and period type
+ * GAP-001: Replaces hardcoded STORY_CONFIGS from storyConfig.ts
+ */
+export const getTemplateByType = query({
+  args: {
+    storyType: v.union(
+      v.literal("company"),
+      v.literal("banker"),
+      v.literal("investor")
+    ),
+    periodType: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly")
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Fetch template matching story type and period type
+    const template = await ctx.db
+      .query("story_templates")
+      .withIndex("by_story_type_period", (q: any) =>
+        q.eq("storyType", args.storyType).eq("periodType", args.periodType)
+      )
+      .filter((q: any) => q.neq(q.field("isActive"), false))
+      .first();
+
+    if (!template) {
+      return null;
+    }
+
+    return {
+      _id: template._id,
+      storyType: template.storyType,
+      periodType: template.periodType,
+      title: template.title,
+      subtitle: template.subtitle,
+      role: template.role,
+      systemPrompt: template.systemPrompt,
+      dataRequirements: template.dataRequirements,
+      focuses: template.focuses,
+      tone: template.tone,
+      exampleOpening: template.exampleOpening,
+      icon: template.icon,
+      keyMetricsToCalculate: template.keyMetricsToCalculate,
+    };
+  },
+});
+
+/**
+ * Get all active story templates
+ */
+export const getAllTemplates = query({
+  args: {},
+  handler: async (ctx) => {
+    const templates = await ctx.db
+      .query("story_templates")
+      .filter((q: any) => q.neq(q.field("isActive"), false))
+      .collect();
+
+    return templates.map((template) => ({
+      _id: template._id,
+      storyType: template.storyType,
+      periodType: template.periodType,
+      title: template.title,
+      subtitle: template.subtitle,
+      icon: template.icon,
+      order: template.order,
+      role: template.role,
+      focuses: template.focuses,
+    }));
+  },
+});
+
+/**
+ * Get all story templates for Admin (includes inactive, limited fields)
+ */
+export const getAdminTemplates = query({
+  args: {},
+  handler: async (ctx) => {
+    // Auth check
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .first();
+    if (!user?.isSuperAdmin) throw new Error("Unauthorized");
+
+    const templates = await ctx.db.query("story_templates").collect();
+
+    // Sort by order/type
+    templates.sort((a, b) => (a.order || 99) - (b.order || 99));
+
+    return templates.map((template) => ({
+      _id: template._id,
+      slug: template.slug,
+      storyType: template.storyType,
+      periodType: template.periodType,
+      title: template.title,
+      isActive: template.isActive !== false,
+      updatedAt: template.updatedAt,
+    }));
+  },
+});
+
+/**
+ * Get single story template by ID for Admin editing
+ */
+export const getTemplate = query({
+  args: {
+    templateId: v.id("story_templates"),
+  },
+  handler: async (ctx, args) => {
+    // Auth check
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .first();
+    if (!user?.isSuperAdmin) throw new Error("Unauthorized");
+
+    return await ctx.db.get(args.templateId);
+  },
+});
+

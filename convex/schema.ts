@@ -801,9 +801,37 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_org", ["orgId"])
     .index("by_user_type", ["userId", "contactType"])
-    .index("by_org_type", ["orgId", "contactType"])
-    .index("by_user_category", ["userId", "category"])
-    .index("by_org_category", ["orgId", "category"]),
+    .index("by_org_type", ["orgId", "contactType"]),
+
+  // Mileage Tracking (Core Product)
+  mileage: defineTable({
+    userId: v.id("users"), // Keep for backward compatibility
+    orgId: v.optional(v.id("organizations")), // Phase 1: Add orgId
+    date: v.number(),
+    startLocation: v.optional(v.string()),
+    endLocation: v.optional(v.string()),
+    distance: v.number(),
+    distanceUnit: v.union(v.literal("miles"), v.literal("km")),
+    purpose: v.string(), // "Client Meeting", "Supply Run", etc.
+    description: v.optional(v.string()), // Detail notes
+    vehicle: v.optional(v.string()), // "Tesla Model 3", "Ford F-150"
+    rate: v.optional(v.number()), // Tax deduction rate per unit
+    amount: v.number(), // Calculated deduction value
+    isRoundTrip: v.optional(v.boolean()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("archived")
+    ),
+    tags: v.optional(v.array(v.string())),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_org", ["orgId"])
+    .index("by_date", ["date"])
+    .index("by_org_date", ["orgId", "date"]),
+
+
 
   // Knowledge Base for AI Learning
   categorization_knowledge: defineTable({
@@ -1019,7 +1047,7 @@ export default defineSchema({
 
   // Story Templates (Micro Add-On System: Story Add-On Templates)
   story_templates: defineTable({
-    addonId: v.id("addons"),
+    addonId: v.optional(v.id("addons")), // Made optional - can be null for core templates
     title: v.string(),
     slug: v.string(),
     storyType: v.union(
@@ -1027,16 +1055,37 @@ export default defineSchema({
       v.literal("banker"),
       v.literal("investor")
     ),
-    templateBody: v.string(), // Template with variable placeholders
-    variables: v.array(v.string()), // List of available variables
+    // Period type for the template
+    periodType: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly")
+    ),
+    // Story generation configuration (migrated from frontend storyConfig.ts)
+    subtitle: v.optional(v.string()), // e.g., "Internal compass - burn rate, trends, cash runway"
+    role: v.optional(v.string()), // e.g., "Chief Financial Officer"
+    systemPrompt: v.string(), // Full AI system prompt for story generation
+    dataRequirements: v.array(v.string()), // Required data fields for story generation
+    focuses: v.array(v.string()), // Focus areas for the story
+    tone: v.optional(v.string()), // e.g., "Direct, actionable, focused on operational sustainability"
+    exampleOpening: v.optional(v.string()), // Example opening paragraph
+    icon: v.optional(v.string()), // Icon name (e.g., "BookOpen", "Building2", "TrendingUp")
+    // Metric calculation hints
+    keyMetricsToCalculate: v.optional(v.array(v.string())), // e.g., ["burnRate", "runway", "cashFlow"]
+    // Legacy fields (kept for backward compatibility)
+    templateBody: v.optional(v.string()), // Template with variable placeholders
+    variables: v.optional(v.array(v.string())), // List of available variables
     config: v.optional(v.any()),
     industry: v.optional(v.string()),
     stage: v.optional(v.string()),
+    // Ordering and visibility
+    order: v.optional(v.number()),
+    isActive: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_addon", ["addonId"])
-    .index("by_story_type", ["storyType"]),
+    .index("by_story_type", ["storyType"])
+    .index("by_story_type_period", ["storyType", "periodType"]),
 
   // Report Templates (Micro Add-On System: Report Add-On Templates)
   report_templates: defineTable({
@@ -1046,11 +1095,17 @@ export default defineSchema({
     reportType: v.string(), // "profit-loss", "balance-sheet", etc.
     config: v.object({
       metrics: v.array(v.string()),
+      description: v.optional(v.string()),
+      icon: v.optional(v.string()),
+      color: v.optional(v.string()),
+      category: v.optional(v.string()),
       filters: v.optional(v.any()),
       layout: v.optional(v.any()),
     }),
     industry: v.optional(v.string()),
     stage: v.optional(v.string()),
+    order: v.optional(v.number()), // GAP-007: Display order for reports
+    isActive: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -1136,4 +1191,161 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_vendor", ["vendorId"])
     .index("by_active", ["isActive"]),
+
+  // Business Type Configurations (GAP-002: Move from hardcoded onboarding)
+  business_type_configs: defineTable({
+    slug: v.string(), // e.g., "creator", "tradesperson", "wellness"
+    displayName: v.string(), // Human-readable name
+    description: v.optional(v.string()), // Extended description
+    defaultAccountTemplate: v.optional(v.string()), // Template ID for default chart of accounts
+    defaultCategories: v.optional(v.array(v.string())), // Default categories for this business type
+    recommendedAddons: v.optional(v.array(v.id("addons"))), // Recommended addons
+    icon: v.optional(v.string()), // Icon name
+    order: v.number(), // Display order
+    isActive: v.boolean(), // Whether to show in onboarding
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_slug", ["slug"]),
+
+  // Default Category Sets (GAP-003: Move from hardcoded CategorySelector)
+  default_category_sets: defineTable({
+    name: v.string(), // e.g., "General", "Creator", "Tradesperson"
+    categories: v.array(v.string()), // Array of category names
+    businessTypes: v.optional(v.array(v.string())), // Business types this set applies to, null = all
+    isDefault: v.boolean(), // Whether this is the default fallback set
+    order: v.optional(v.number()), // Display order of categories
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_default", ["isDefault"]),
+
+  // ==========================================
+  // CORE PRODUCT: Invoices (Simple Invoicing)
+  // ==========================================
+  invoices: defineTable({
+    orgId: v.id("organizations"),
+    customerId: v.optional(v.id("vendors")), // Re-use vendors for customers
+    customerName: v.string(),
+    customerEmail: v.optional(v.string()),
+    customerAddress: v.optional(v.string()),
+    invoiceNumber: v.string(), // e.g., "INV-001"
+    status: v.union(
+      v.literal("draft"),
+      v.literal("sent"),
+      v.literal("viewed"),
+      v.literal("paid"),
+      v.literal("overdue"),
+      v.literal("void")
+    ),
+    issueDate: v.number(),
+    dueDate: v.number(),
+    lineItems: v.array(v.object({
+      description: v.string(),
+      quantity: v.number(),
+      unitPrice: v.number(),
+      amount: v.number(),
+      taxRate: v.optional(v.number()),
+    })),
+    subtotal: v.number(),
+    taxAmount: v.optional(v.number()),
+    total: v.number(),
+    currency: v.string(),
+    notes: v.optional(v.string()),
+    paymentTerms: v.optional(v.string()),
+    // Link to paid transaction
+    paidTransactionId: v.optional(v.id("transactions_raw")),
+    paidAt: v.optional(v.number()),
+    // Metadata
+    createdByUserId: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_customer", ["customerId"])
+    .index("by_due_date", ["dueDate"]),
+
+  // ==========================================
+  // ADD-ON MODULE: Projects (Project Profitability)
+  // ==========================================
+  projects: defineTable({
+    orgId: v.id("organizations"),
+    name: v.string(),
+    clientId: v.optional(v.id("vendors")),
+    status: v.union(
+      v.literal("active"),
+      v.literal("completed"),
+      v.literal("on_hold"),
+      v.literal("cancelled")
+    ),
+    budgetAmount: v.optional(v.number()),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+    color: v.optional(v.string()), // For UI tagging
+    description: v.optional(v.string()),
+    createdByUserId: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_client", ["clientId"]),
+
+  // Junction table for project-transaction relationships
+  project_transactions: defineTable({
+    projectId: v.id("projects"),
+    transactionId: v.id("transactions_raw"),
+    allocatedAmount: v.optional(v.number()), // For partial allocation
+    createdAt: v.number(),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_transaction", ["transactionId"]),
+
+  // ==========================================
+  // ADD-ON MODULE: Time Tracking
+  // ==========================================
+  time_entries: defineTable({
+    orgId: v.id("organizations"),
+    userId: v.id("users"),
+    projectId: v.optional(v.id("projects")),
+    description: v.string(),
+    startTime: v.number(),
+    endTime: v.optional(v.number()),
+    durationMinutes: v.number(),
+    hourlyRate: v.optional(v.number()),
+    isBillable: v.boolean(),
+    status: v.union(v.literal("running"), v.literal("stopped")),
+    tags: v.optional(v.array(v.string())),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_user", ["userId"])
+    .index("by_project", ["projectId"])
+    .index("by_org_user", ["orgId", "userId"]),
+
+  // ==========================================
+  // ADD-ON MODULE: Contractor Management
+  // ==========================================
+  contractors: defineTable({
+    orgId: v.id("organizations"),
+    name: v.string(),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    taxId: v.optional(v.string()), // W-9 / SSN (should be encrypted in production)
+    address: v.optional(v.string()),
+    defaultRate: v.optional(v.number()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("inactive")
+    ),
+    isW9OnFile: v.boolean(),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"]),
 });

@@ -107,7 +107,7 @@ export function ComplianceSection({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="resellersPermit">Reseller's Permit / Seller's Permit</Label>
+            <Label htmlFor="resellersPermit">Reseller&apos;s Permit / Seller&apos;s Permit</Label>
             <Input
               id="resellersPermit"
               value={resellersPermit}

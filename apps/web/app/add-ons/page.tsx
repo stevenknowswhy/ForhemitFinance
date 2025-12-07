@@ -19,6 +19,8 @@ import { BookOpen, FileText, Loader2, CheckCircle2, Lock, Sparkles, Clock, Alert
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
+// @ts-ignore
+const apiAny: any = api;
 import { Id, Doc } from "@convex/_generated/dataModel";
 import { useDebounce } from "use-debounce";
 
@@ -30,7 +32,7 @@ type EnrichedAddon = Doc<"addons"> & {
     purchasedAt?: number;
     lastPaymentStatus?: string;
   } | null;
-  campaigns: Doc<"pricing_campaigns">[];
+  campaigns?: Doc<"pricing_campaigns">[];
   isEnabled: boolean;
 };
 
@@ -61,17 +63,18 @@ export default function AddOnsPage() {
 
   const canManageModules = userRole === "ORG_OWNER" || userRole === "ORG_ADMIN";
 
-  // Get available add-ons
+  // Get available add-ons from marketplace registry
+  const queryArgs = currentOrgId ? {
+    orgId: currentOrgId,
+    search: debouncedSearch || undefined,
+    category: category === "all" ? undefined : category,
+  } : { orgId: undefined };
+
   const addons = useQuery(
-    // @ts-ignore
-    api.addons.getAvailableAddons,
-    currentOrgId ? {
-      orgId: currentOrgId,
-      search: debouncedSearch || undefined,
-      category: category === "all" ? undefined : category,
-      sortBy: sortBy,
-    } : "skip"
-  );
+    apiAny.marketplace.registry.listAvailableAddons,
+    queryArgs as any
+  ) as EnrichedAddon[] | undefined;
+
 
   // Mutations
   const enableFreeAddon = useMutation(api.addons.enableFreeAddon);
@@ -247,7 +250,7 @@ export default function AddOnsPage() {
               </div>
               <h3 className="text-lg font-medium mb-2">No add-ons found</h3>
               <p className="text-muted-foreground">
-                Try adjusting your search or filters to find what you're looking for.
+                Try adjusting your search or filters to find what you&apos;re looking for.
               </p>
               <Button
                 variant="link"

@@ -23,6 +23,9 @@ export function StoriesTab() {
   const { toast } = useToast();
   const { notifications } = useNotifications();
   const stories = useQuery(api.ai_stories.getStories, {});
+  // GAP-001: Fetch templates dynamically
+  const templates = useQuery(api.ai_stories.queries.getAllTemplates);
+
   const exportStory = useAction(api.ai_stories.exportStory);
   const generateCompanyStory = useAction(api.ai_stories.generateCompanyStory);
   const generateBankerStory = useAction(api.ai_stories.generateBankerStory);
@@ -36,6 +39,12 @@ export function StoriesTab() {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+
+  // Helper to get template config
+  const getTemplateConfig = (type: string, period: string) => {
+    if (!templates) return null;
+    return templates.find(t => t.storyType === type && t.periodType === period);
+  };
 
   // Refresh stories when notifications indicate completion
   useEffect(() => {
@@ -560,6 +569,8 @@ export function StoriesTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {storyTypes.map(({ type, periodType }) => {
             const story = getLatestStory(type, periodType);
+            const template = getTemplateConfig(type, periodType === "annually" ? "quarterly" : periodType);
+
             const generationStatus = story?.generationStatus;
             const isPending = generationStatus === "pending" || generationStatus === "generating";
             const isFailed = generationStatus === "failed";
@@ -569,8 +580,10 @@ export function StoriesTab() {
                 key={`${type}-${periodType}`}
                 storyType={type}
                 periodType={periodType}
-                title={story?.title || ""}
-                summary={story?.summary || ""}
+                title={story?.title || template?.title || `${type.charAt(0).toUpperCase() + type.slice(1)} Story`}
+                summary={story?.summary || template?.subtitle || ""}
+                role={template?.role}
+                focuses={template?.focuses}
                 lastUpdated={story?.updatedAt || Date.now()}
                 hasStory={!!story && generationStatus === "completed"}
                 isGenerating={isPending || isGenerating[`${type}-${periodType}`]}

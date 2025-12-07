@@ -20,22 +20,22 @@ interface ItemizationPanelProps {
   totalsMatch: boolean;
   totalsDifference: number;
   amount: string;
-  
+
   // Line items handlers
   addLineItem: () => void;
   removeLineItem: (id: string) => void;
   updateLineItem: (id: string, field: keyof LineItem, value: string) => void;
   disableItemization: () => void;
-  
+
   // AI for line items
   handleLineItemAI: (lineItemId: string) => Promise<void>;
   lineItemAILoading: Record<string, boolean>;
   lineItemAISuggestions: Record<string, any[]>;
-  
+
   // Receipt OCR
   receiptOCRData: ReceiptOCRData | null;
   setLineItems: (items: LineItem[]) => void;
-  
+
   // Accounts
   userAccounts: any[] | undefined;
 }
@@ -82,16 +82,16 @@ export function ItemizationPanel({
               type="button"
               onClick={() => {
                 // Pre-fill line items from OCR
-                                                  setLineItems(receiptOCRData.items?.map((item: any, index: number) => ({
-                                                    id: Date.now().toString() + index,
-                                                    description: item.description || "",
-                                                    category: "",
-                                                    amount: item.amount.toFixed(2),
-                                                    tax: "",
-                                                    tip: "",
-                                                    debitAccountId: "",
-                                                    creditAccountId: "",
-                                                  })) || []);;
+                setLineItems(receiptOCRData.items?.map((item: any, index: number) => ({
+                  id: Date.now().toString() + index,
+                  description: item.description || "",
+                  category: "",
+                  amount: item.amount.toFixed(2),
+                  tax: "",
+                  tip: "",
+                  debitAccountId: "",
+                  creditAccountId: "",
+                })) || []);;
               }}
               className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors min-h-[44px]"
             >
@@ -113,7 +113,7 @@ export function ItemizationPanel({
       {lineItems.length === 0 ? (
         <div className="text-center py-8 border border-dashed border-border rounded-lg">
           <p className="text-sm text-muted-foreground mb-3">
-            No line items yet. Click "Add Item" to start itemizing.
+            No line items yet. Click &quot;Add Item&quot; to start itemizing.
           </p>
           <button
             type="button"
@@ -139,7 +139,7 @@ export function ItemizationPanel({
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-              
+
               <div>
                 <label className="text-xs font-medium text-foreground mb-1 block">
                   Description *
@@ -410,10 +410,10 @@ export function ItemizationPanel({
               <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
                 <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300">
-                  Totals don't match
+                  Totals don&apos;t match
                 </p>
                 <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-                  Itemized total (${lineItemsTotal.toFixed(2)}) differs from transaction total (${parseAmount(amount).toFixed(2)}) by ${totalsDifference.toFixed(2)}. 
+                  Itemized total (${lineItemsTotal.toFixed(2)}) differs from transaction total (${parseAmount(amount).toFixed(2)}) by ${totalsDifference.toFixed(2)}.
                   You can still save, but the difference will be tracked separately.
                 </p>
               </div>

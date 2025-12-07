@@ -24,6 +24,7 @@ export const _generateInvestorStoryInternal = internalAction({
   handler: async (ctx, args) => {
     try {
       // Update status to generating
+      // @ts-ignore
       await ctx.runMutation(api.ai_stories.updateStory, {
         storyId: args.storyId,
         generationStatus: "generating",
@@ -39,14 +40,31 @@ export const _generateInvestorStoryInternal = internalAction({
       // Build prompt
       const periodLabel = `${new Date(args.periodStart).toLocaleDateString()} to ${new Date(args.periodEnd).toLocaleDateString()}`;
       const prompt = buildInvestorStoryPrompt(financialData, periodLabel);
-      const systemPrompt = (args.periodType === "annually"
-        ? STORY_SYSTEM_PROMPTS.investor.quarterly
-        : STORY_SYSTEM_PROMPTS.investor[args.periodType]) || STORY_SYSTEM_PROMPTS.investor.monthly;
+
+      // GAP-001: Fetch system prompt from story_templates table
+      let systemPrompt: string;
+
+      // Default fallback prompt if DB template is missing (safety)
+      const fallbackPrompt = STORY_SYSTEM_PROMPTS.investor[args.periodType === "annually" ? "quarterly" : args.periodType] || STORY_SYSTEM_PROMPTS.investor.monthly;
+
+      try {
+        const template = await ctx.runQuery(api.ai_stories.queries.getTemplateByType, {
+          storyType: "investor",
+          periodType: args.periodType === "annually" ? "quarterly" : args.periodType, // Fallback annually to quarterly for now
+        });
+
+        systemPrompt = template?.systemPrompt || fallbackPrompt;
+      } catch (e) {
+        console.error("Failed to fetch story template, using fallback", e);
+        systemPrompt = fallbackPrompt;
+      }
 
       // Call OpenRouter API
       const result = await callOpenRouterAPI(prompt, systemPrompt);
 
       // Update story with results
+      // Update story with results
+      // @ts-ignore
       await ctx.runMutation(api.ai_stories.updateStory, {
         storyId: args.storyId,
         narrative: result.narrative,
@@ -72,6 +90,8 @@ export const _generateInvestorStoryInternal = internalAction({
       //       });
     } catch (error: any) {
       // Update story with error
+      // Update story with error
+      // @ts-ignore
       await ctx.runMutation(api.ai_stories.updateStory, {
         storyId: args.storyId,
         generationStatus: "failed",

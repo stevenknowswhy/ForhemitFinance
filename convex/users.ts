@@ -5,6 +5,25 @@
 
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { QueryCtx, MutationCtx } from "./_generated/server";
+
+export async function getAuthenticatedUserOrThrow(ctx: QueryCtx | MutationCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Not authenticated");
+  }
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_email", (q) => q.eq("email", identity.email!))
+    .first();
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  return user;
+}
 
 /**
  * Get current authenticated user from Clerk
@@ -202,24 +221,24 @@ export const updatePreferences = mutation({
     }
 
     const preferences = { ...user.preferences };
-    
+
     // Basic preferences
     if (args.defaultCurrency !== undefined) preferences.defaultCurrency = args.defaultCurrency;
     if (args.fiscalYearStart !== undefined) preferences.fiscalYearStart = args.fiscalYearStart;
     if (args.aiInsightLevel !== undefined) preferences.aiInsightLevel = args.aiInsightLevel;
     if (args.notificationsEnabled !== undefined) preferences.notificationsEnabled = args.notificationsEnabled;
     if (args.darkMode !== undefined) preferences.darkMode = args.darkMode;
-    
+
     // App Display Settings
     if (args.numberFormat !== undefined) preferences.numberFormat = args.numberFormat;
     if (args.timezone !== undefined) preferences.timezone = args.timezone;
     if (args.weekStart !== undefined) preferences.weekStart = args.weekStart;
     if (args.defaultHomeTab !== undefined) preferences.defaultHomeTab = args.defaultHomeTab;
-    
+
     // Accounting Preferences
     if (args.accountingMethod !== undefined) preferences.accountingMethod = args.accountingMethod;
     if (args.businessEntityType !== undefined) preferences.businessEntityType = args.businessEntityType;
-    
+
     // Notification Preferences
     if (args.transactionAlerts !== undefined) preferences.transactionAlerts = args.transactionAlerts;
     if (args.weeklyBurnRate !== undefined) preferences.weeklyBurnRate = args.weeklyBurnRate;
@@ -228,13 +247,13 @@ export const updatePreferences = mutation({
     if (args.pushNotifications !== undefined) preferences.pushNotifications = args.pushNotifications;
     if (args.emailNotifications !== undefined) preferences.emailNotifications = args.emailNotifications;
     if (args.smsAlerts !== undefined) preferences.smsAlerts = args.smsAlerts;
-    
+
     // Privacy Settings
     if (args.optOutAI !== undefined) preferences.optOutAI = args.optOutAI;
     if (args.allowTraining !== undefined) preferences.allowTraining = args.allowTraining;
     if (args.hideBalances !== undefined) preferences.hideBalances = args.hideBalances;
     if (args.optOutAnalytics !== undefined) preferences.optOutAnalytics = args.optOutAnalytics;
-    
+
     // AI Personalization
     if (args.aiStrictness !== undefined) preferences.aiStrictness = args.aiStrictness;
     if (args.showExplanations !== undefined) preferences.showExplanations = args.showExplanations;
@@ -270,7 +289,7 @@ export const addCustomCategory = mutation({
 
     const preferences = { ...user.preferences };
     const customCategories = preferences.customCategories || [];
-    
+
     // Add category if it doesn't already exist (case-insensitive)
     const categoryLower = args.category.toLowerCase();
     if (!customCategories.some(cat => cat.toLowerCase() === categoryLower)) {
@@ -329,7 +348,7 @@ export const refreshApp = mutation({
       .query("entries_proposed")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const entry of allProposedEntries) {
       await ctx.db.delete(entry._id);
       stats.proposedEntries++;
@@ -340,7 +359,7 @@ export const refreshApp = mutation({
       .query("transactions_raw")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const transaction of transactions) {
       // Delete associated receipts
       if (transaction.receiptIds && transaction.receiptIds.length > 0) {
@@ -359,14 +378,14 @@ export const refreshApp = mutation({
       .query("entries_final")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const entry of finalEntries) {
       // Delete entry lines
       const entryLines = await ctx.db
         .query("entry_lines")
         .withIndex("by_entry", (q) => q.eq("entryId", entry._id))
         .collect();
-      
+
       for (const line of entryLines) {
         await ctx.db.delete(line._id);
         stats.entryLines++;
@@ -381,7 +400,7 @@ export const refreshApp = mutation({
       .query("receipts")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const receipt of allReceipts) {
       await ctx.db.delete(receipt._id);
       stats.receipts++;
@@ -392,7 +411,7 @@ export const refreshApp = mutation({
       .query("accounts")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const account of accounts) {
       await ctx.db.delete(account._id);
       stats.accounts++;
@@ -403,7 +422,7 @@ export const refreshApp = mutation({
       .query("addresses")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const address of addresses) {
       await ctx.db.delete(address._id);
       stats.addresses++;
@@ -414,7 +433,7 @@ export const refreshApp = mutation({
       .query("business_profiles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const profile of businessProfiles) {
       await ctx.db.delete(profile._id);
       stats.businessProfiles++;
@@ -425,7 +444,7 @@ export const refreshApp = mutation({
       .query("professional_contacts")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const contact of professionalContacts) {
       await ctx.db.delete(contact._id);
       stats.professionalContacts++;
@@ -436,7 +455,7 @@ export const refreshApp = mutation({
       .query("goals")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const goal of goals) {
       await ctx.db.delete(goal._id);
       stats.goals++;
@@ -447,7 +466,7 @@ export const refreshApp = mutation({
       .query("budgets")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const budget of budgets) {
       await ctx.db.delete(budget._id);
       stats.budgets++;
@@ -458,7 +477,7 @@ export const refreshApp = mutation({
       .query("ai_insights")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const insight of aiInsights) {
       await ctx.db.delete(insight._id);
       stats.aiInsights++;
@@ -469,7 +488,7 @@ export const refreshApp = mutation({
       .query("institutions")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    
+
     for (const institution of institutions) {
       await ctx.db.delete(institution._id);
       stats.institutions++;

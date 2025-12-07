@@ -171,8 +171,9 @@ export function BillingSettings({ subscriptionTier }: BillingSettingsProps) {
           <CardHeader>
             <CardTitle className="text-base text-destructive">Cancel Subscription</CardTitle>
             <CardDescription>
-              Cancel your subscription. You'll retain access until the end of your billing period.
+              Cancel your subscription. You&apos;ll retain access until the end of your billing period.
             </CardDescription>
+
           </CardHeader>
           <CardContent>
             <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
@@ -188,7 +189,7 @@ export function BillingSettings({ subscriptionTier }: BillingSettingsProps) {
                     Cancel Subscription?
                   </DialogTitle>
                   <DialogDescription>
-                    Are you sure you want to cancel your subscription? You'll lose access to premium features at the end of your current billing period.
+                    Are you sure you want to cancel your subscription? You&apos;ll lose access to premium features at the end of your current billing period.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

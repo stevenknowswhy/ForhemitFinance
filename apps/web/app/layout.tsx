@@ -11,7 +11,8 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ImpersonationBanner } from "./components/ImpersonationBanner";
-import { GlobalFooter } from "./components/GlobalFooter";
+import { AppFooterWrapper } from "./components/AppFooterWrapper";
+
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -48,7 +49,7 @@ export default function RootLayout({
                       <ErrorBoundary>
                         <ImpersonationBanner />
                         {children}
-                        <GlobalFooter />
+                        <AppFooterWrapper />
                         <Toaster />
                       </ErrorBoundary>
                     </NotificationProvider>

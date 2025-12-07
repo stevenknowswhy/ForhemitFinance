@@ -201,7 +201,7 @@ export function SecuritySettings() {
             <LogOut className="w-5 h-5" />
             Active Sessions
           </CardTitle>
-          <CardDescription>Manage devices where you're currently signed in</CardDescription>
+          <CardDescription>Manage devices where you&apos;re currently signed in</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">

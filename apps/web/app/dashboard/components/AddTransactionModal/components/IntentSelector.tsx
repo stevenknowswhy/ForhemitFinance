@@ -21,12 +21,12 @@ export function IntentSelector({ intent, onIntentSelect }: IntentSelectorProps) 
         What kind of transaction are you adding?
       </h3>
       <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-4">
-        Let's get this done together.
+        Let&apos;s get this done together.
       </p>
       {/* Show subtle hint if we have a last intent preference */}
       {hasLastIntent && (
         <p className="text-xs text-slate-500 dark:text-slate-400 text-center mb-2">
-          💡 Tip: We'll remember your choice for next time
+          💡 Tip: We&apos;ll remember your choice for next time
         </p>
       )}
       <div className="grid grid-cols-2 gap-3">

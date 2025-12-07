@@ -17,7 +17,7 @@ export function TransactionEmptyState({ type, className }: EmptyStateProps) {
           No categories yet
         </h3>
         <p className="text-xs text-muted-foreground mb-4">
-          You haven't set up categories yet. We'll start you with some smart defaults.
+          You haven&apos;t set up categories yet. We&apos;ll start you with some smart defaults.
         </p>
       </div>
     );
@@ -42,7 +42,7 @@ export function TransactionEmptyState({ type, className }: EmptyStateProps) {
           Your first transaction!
         </h3>
         <p className="text-xs text-muted-foreground">
-          We'll learn from your entries to make future transactions even faster.
+          We&apos;ll learn from your entries to make future transactions even faster.
         </p>
       </div>
     );

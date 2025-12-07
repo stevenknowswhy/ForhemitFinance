@@ -7,6 +7,8 @@
  */
 
 import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import {
   FileText,
   Building2,
@@ -37,10 +39,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useModuleStatuses } from "@/hooks/useEnabledModules";
-// import { BankLenderReportModal } from "./BankLenderReportModal"; // FIXME: Schema mismatches
-// import { CreditorVendorReportModal } from "./CreditorVendorReportModal"; // FIXME: Schema mismatches
-// import { InvestorSummaryReportModal } from "./InvestorSummaryReportModal"; // FIXME: Schema mismatches
-// import { ExecutiveSummaryReportModal } from "./ExecutiveSummaryReportModal"; // FIXME: Schema mismatches
+// import { useOrgIdOptional } from "@/hooks/useOrgId"; // Deprecated
+import { useOrg } from "@/app/contexts/OrgContext";
+// Report Modals
 import { ProfitLossReportModal } from "./ProfitLossReportModal";
 import { BalanceSheetReportModal } from "./BalanceSheetReportModal";
 import { CashFlowReportModal } from "./CashFlowReportModal";
@@ -55,6 +56,12 @@ import { VendorSpendAnalysisReportModal } from "./VendorSpendAnalysisReportModal
 import { TaxPreparationReportModal } from "./TaxPreparationReportModal";
 import { YearEndAccountantPackReportModal } from "./YearEndAccountantPackReportModal";
 import { TransactionExportModal } from "./TransactionExportModal";
+// FIXME: Re-enable when schema mismatches are resolved
+// import { BankLenderReportModal } from "./BankLenderReportModal";
+// import { CreditorVendorReportModal } from "./CreditorVendorReportModal";
+// import { InvestorSummaryReportModal } from "./InvestorSummaryReportModal";
+// import { ExecutiveSummaryReportModal } from "./ExecutiveSummaryReportModal";
+
 import Link from "next/link";
 
 // Map icon names to components
@@ -64,6 +71,21 @@ const iconMap: { [key: string]: React.ElementType } = {
   Sparkles,
   BarChart3,
   TrendingUp,
+  Building2,
+  Users,
+  Download,
+  Eye,
+  DollarSign,
+  Scale,
+  ArrowLeftRight,
+  Calculator,
+  Flame,
+  Calendar,
+  Receipt,
+  FileCheck,
+  ShoppingCart,
+  ReceiptText,
+  Briefcase,
 };
 
 function getModuleIcon(iconName: string | undefined): React.ElementType {
@@ -72,9 +94,36 @@ function getModuleIcon(iconName: string | undefined): React.ElementType {
   return Icon || FileText;
 }
 
+// Modal Component Mapping
+const REPORT_MODALS: { [key: string]: React.ElementType } = {
+  "profit-loss": ProfitLossReportModal,
+  "balance-sheet": BalanceSheetReportModal,
+  "cash-flow": CashFlowReportModal,
+  "general-ledger": GeneralLedgerReportModal,
+  "trial-balance": TrialBalanceReportModal,
+  "burn-rate-runway": BurnRateRunwayReportModal,
+  "financial-summary": FinancialSummaryReportModal,
+  "kpi-dashboard": KPIDashboardReportModal,
+  "accounts-receivable": AccountsReceivableReportModal,
+  "accounts-payable": AccountsPayableReportModal,
+  "vendor-spend": VendorSpendAnalysisReportModal,
+  "tax-preparation": TaxPreparationReportModal,
+  "year-end-accountant": YearEndAccountantPackReportModal,
+  // Disabled by default
+  // "bank-lender": BankLenderReportModal,
+  // "creditor-vendor": CreditorVendorReportModal,
+  // "investor-summary": InvestorSummaryReportModal,
+  // "executive-summary": ExecutiveSummaryReportModal,
+};
+
 export function ReportsTab() {
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const [showTransactionExport, setShowTransactionExport] = useState(false);
+  const { currentOrgId: orgId } = useOrg();
+
+  // GAP-004: Fetch report templates from Convex
+  const templates = useQuery(api.reports.getAvailableReports, { orgId: orgId ?? undefined });
+
   const { modules: moduleStatuses, isLoading: isLoadingModules } = useModuleStatuses();
 
   // Get enabled modules that contribute to Insights
@@ -100,159 +149,36 @@ export function ReportsTab() {
     (moduleStatus) => moduleStatus.manifest.id !== "reports"
   );
 
-  // Core Financial Reports (Business)
-  const coreFinancialReports = [
-    {
-      id: "profit-loss",
-      title: "Profit & Loss (P&L) Statement",
-      description: "Selectable date range, filters for business vs personal vs blended, simple and advanced modes, breakdown by category/product/revenue stream.",
-      icon: DollarSign,
-      color: "text-blue-600 dark:text-blue-400",
-    },
-    {
-      id: "balance-sheet",
-      title: "Balance Sheet",
-      description: "Auto-generated from accounts & liabilities. Realistic, simplified layout for new businesses.",
-      icon: Scale,
-      color: "text-green-600 dark:text-green-400",
-    },
-    {
-      id: "cash-flow",
-      title: "Cash Flow Statement",
-      description: "Indirect method. Monthly or quarterly versions. Essential for lenders and investors.",
-      icon: ArrowLeftRight,
-      color: "text-purple-600 dark:text-purple-400",
-    },
-    {
-      id: "general-ledger",
-      title: "General Ledger Report",
-      description: "Complete line-by-line dataset for accountants or auditors. Exportable to CSV/XLSX.",
-      icon: BookOpen,
-      color: "text-orange-600 dark:text-orange-400",
-    },
-    {
-      id: "trial-balance",
-      title: "Trial Balance",
-      description: "Essential for accountants. Supports error-checking and journal entry review.",
-      icon: Calculator,
-      color: "text-red-600 dark:text-red-400",
-    },
-  ];
+  // Derive grouped reports from fetched templates
+  const coreFinancialReports = templates?.filter(t => t.config?.category === "core") || [];
+  const businessHealthReports = templates?.filter(t => t.config?.category === "health") || [];
+  const businessSnapshotReports = templates?.filter(t => t.config?.category === "snapshots") || [];
 
-  // Business Health & Operations Reports
-  const businessHealthReports = [
-    {
-      id: "burn-rate-runway",
-      title: "Burn Rate + Runway Report",
-      description: "Monthly burn, average burn, estimated runway, scenario toggles for 'what if' analysis.",
-      icon: Flame,
-      color: "text-red-600 dark:text-red-400",
-    },
-    {
-      id: "financial-summary",
-      title: "Monthly / Quarterly Financial Summary",
-      description: "Management report with revenue, expenses, profit, cash flow, top categories, and trends.",
-      icon: Calendar,
-      color: "text-blue-600 dark:text-blue-400",
-    },
-    {
-      id: "kpi-dashboard",
-      title: "Business KPI Dashboard",
-      description: "CAC, LTV, gross margin, revenue growth, ARPU, churn, owner compensation. Perfect for founders.",
-      icon: BarChart3,
-      color: "text-purple-600 dark:text-purple-400",
-    },
-    {
-      id: "accounts-receivable",
-      title: "Accounts Receivable Summary",
-      description: "Outstanding invoices, aging buckets (0-30, 31-60, etc.), customers who owe money.",
-      icon: Receipt,
-      color: "text-green-600 dark:text-green-400",
-    },
-    {
-      id: "accounts-payable",
-      title: "Accounts Payable Summary",
-      description: "Outstanding bills, due dates, vendors owed. Track what you need to pay.",
-      icon: FileCheck,
-      color: "text-orange-600 dark:text-orange-400",
-    },
-    {
-      id: "vendor-spend",
-      title: "Vendor Spend Analysis",
-      description: "Top vendors, total spent by vendor. Perfect for contract renegotiations.",
-      icon: ShoppingCart,
-      color: "text-indigo-600 dark:text-indigo-400",
-    },
-    {
-      id: "tax-preparation",
-      title: "Tax Preparation Packet",
-      description: "Hero feature: Profit, expenses, mileage, deductible categories, home office summary. PDF + CSV.",
-      icon: ReceiptText,
-      color: "text-pink-600 dark:text-pink-400",
-    },
-    {
-      id: "year-end-accountant",
-      title: "Year-End Accountant Pack",
-      description: "Designed for CPAs: Trial balance, ledger, P&L, balance sheet, adjustments log, notes from owner.",
-      icon: Briefcase,
-      color: "text-cyan-600 dark:text-cyan-400",
-    },
-  ];
+  const renderReportCard = (template: any) => {
+    const Icon = getModuleIcon(template.config?.icon);
+    const color = template.config?.color || "text-blue-600";
 
-  // Business Snapshot Reports
-  const businessSnapshotReports = [
-    {
-      id: "bank-lender",
-      title: "Bank / Lender Application Snapshot",
-      description: "Designed for bank underwriters asking for last 12 months performance, liabilities, and cash position.",
-      icon: Building2,
-      color: "text-blue-600 dark:text-blue-400",
-    },
-    {
-      id: "creditor-vendor",
-      title: "Creditor / Vendor Snapshot",
-      description: "Quick financial overview for vendors and creditors requesting payment terms or credit applications.",
-      icon: Users,
-      color: "text-green-600 dark:text-green-400",
-    },
-    {
-      id: "investor-summary",
-      title: "Investor Summary",
-      description: "Comprehensive financial summary highlighting growth metrics, revenue trends, and business outlook.",
-      icon: TrendingUp,
-      color: "text-purple-600 dark:text-purple-400",
-    },
-    {
-      id: "executive-summary",
-      title: "Internal Executive Summary",
-      description: "Owner view with detailed insights, burn rate analysis, runway projections, and strategic recommendations.",
-      icon: FileText,
-      color: "text-orange-600 dark:text-orange-400",
-    },
-  ];
-
-  const renderReportCard = (template: typeof coreFinancialReports[0]) => {
-    const Icon = template.icon;
     return (
-      <Card key={template.id} className="hover:shadow-lg transition-shadow">
+      <Card key={template.slug} className="hover:shadow-lg transition-shadow">
         <CardHeader>
           <div className="flex items-start gap-3">
-            <Icon className={`w-6 h-6 ${template.color} mt-1 flex-shrink-0`} />
+            <Icon className={`w-6 h-6 ${color} mt-1 flex-shrink-0`} />
             <div className="flex-1">
               <CardTitle className="text-lg">{template.title}</CardTitle>
               <CardDescription className="mt-2">
-                {template.description}
+                {template.config?.description}
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardFooter className="flex gap-2">
           <Button
-            onClick={() => setSelectedReport(template.id)}
+            onClick={() => setSelectedReport(template.slug)}
             className="flex-1"
+            disabled={!REPORT_MODALS[template.slug]} // Disable if no modal mapped
           >
             <Eye className="w-4 h-4 mr-2" />
-            View Report
+            {REPORT_MODALS[template.slug] ? "View Report" : "Coming Soon"}
           </Button>
         </CardFooter>
       </Card>
@@ -285,6 +211,20 @@ export function ReportsTab() {
       </div>
     );
   }
+
+  // Helper to render selected modal
+  const renderSelectedModal = () => {
+    if (!selectedReport) return null;
+    const ModalComponent = REPORT_MODALS[selectedReport];
+    if (!ModalComponent) return null;
+
+    return (
+      <ModalComponent
+        open={true}
+        onOpenChange={(open: boolean) => !open && setSelectedReport(null)}
+      />
+    );
+  };
 
   return (
     <div>
@@ -326,7 +266,13 @@ export function ReportsTab() {
                   These are the bread-and-butter reports banks and accountants expect.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {coreFinancialReports.map(renderReportCard)}
+                  {coreFinancialReports.length > 0 ? (
+                    coreFinancialReports.map(renderReportCard)
+                  ) : (
+                    <div className="col-span-2 text-center py-8 text-muted-foreground">
+                      Loading reports...
+                    </div>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -338,7 +284,13 @@ export function ReportsTab() {
                   Essential reports for managing your business operations and preparing for tax season.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {businessHealthReports.map(renderReportCard)}
+                  {businessHealthReports.length > 0 ? (
+                    businessHealthReports.map(renderReportCard)
+                  ) : (
+                    <div className="col-span-2 text-center py-8 text-muted-foreground">
+                      Loading reports...
+                    </div>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -350,7 +302,13 @@ export function ReportsTab() {
                   Quick financial overviews for specific business needs.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {businessSnapshotReports.map(renderReportCard)}
+                  {businessSnapshotReports.length > 0 ? (
+                    businessSnapshotReports.map(renderReportCard)
+                  ) : (
+                    <div className="col-span-2 text-center py-8 text-muted-foreground">
+                      Loading reports...
+                    </div>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -472,115 +430,8 @@ export function ReportsTab() {
         </div>
       )}
 
-      {/* Core Financial Report Modals */}
-      {selectedReport === "profit-loss" && (
-        <ProfitLossReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "balance-sheet" && (
-        <BalanceSheetReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "cash-flow" && (
-        <CashFlowReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "general-ledger" && (
-        <GeneralLedgerReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "trial-balance" && (
-        <TrialBalanceReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-
-      {/* Business Health & Operations Report Modals */}
-      {selectedReport === "burn-rate-runway" && (
-        <BurnRateRunwayReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "financial-summary" && (
-        <FinancialSummaryReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "kpi-dashboard" && (
-        <KPIDashboardReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "accounts-receivable" && (
-        <AccountsReceivableReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "accounts-payable" && (
-        <AccountsPayableReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "vendor-spend" && (
-        <VendorSpendAnalysisReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "tax-preparation" && (
-        <TaxPreparationReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-      {selectedReport === "year-end-accountant" && (
-        <YearEndAccountantPackReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      )}
-
-      {/* Business Snapshot Report Modals */}
-      {/* FIXME: BankLenderReportModal disabled due to schema mismatches */}
-      {/* selectedReport === "bank-lender" && (
-        <BankLenderReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      ) */}
-      {/* FIXME: Additional disabled modals */}
-      {/* selectedReport === "creditor-vendor" && (
-        <CreditorVendorReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      ) */}
-      {/* selectedReport === "investor-summary" && (
-        <InvestorSummaryReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      ) */}
-      {/* selectedReport === "executive-summary" && (
-        <ExecutiveSummaryReportModal
-          open={true}
-          onOpenChange={(open) => !open && setSelectedReport(null)}
-        />
-      ) */}
+      {/* Dynamic Report Modal */}
+      {renderSelectedModal()}
 
       {/* Transaction Export Modal */}
       <TransactionExportModal

@@ -21,8 +21,8 @@ interface CategorySelectorProps {
   disabled?: boolean;
 }
 
-// Default categories for Simple Mode (max 15-20)
-const DEFAULT_CATEGORIES = [
+// GAP-003: Fallback categories (used only if Convex query fails)
+const FALLBACK_CATEGORIES = [
   "Food & Drinks",
   "Office Supplies",
   "Travel",
@@ -56,19 +56,27 @@ export function CategorySelector({
   const [searchQuery, setSearchQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
-  // Get user's custom categories
+  // Get user's custom categories and business type
   const currentUser = useQuery(api.users.getCurrentUser);
   const customCategories = currentUser?.preferences?.customCategories || [];
+  const userBusinessType = currentUser?.businessType;
+
+  // GAP-003: Fetch default categories from Convex
+  const defaultCategoriesFromConvex = useQuery(
+    api.categories.getDefaultCategorySet,
+    { businessType: userBusinessType }
+  );
+  const defaultCategories = defaultCategoriesFromConvex ?? FALLBACK_CATEGORIES;
 
   // Combine default and custom categories
   const allCategories = useMemo(() => {
-    const combined = [...DEFAULT_CATEGORIES, ...customCategories];
+    const combined = [...defaultCategories, ...customCategories];
     // Remove duplicates (case-insensitive)
     const unique = combined.filter((cat, index, self) =>
       index === self.findIndex(c => c.toLowerCase() === cat.toLowerCase())
     );
     return unique;
-  }, [customCategories]);
+  }, [defaultCategories, customCategories]);
 
   // Filter categories based on search, or allow free-text if not found
   const filteredCategories = useMemo(() => {
@@ -76,10 +84,10 @@ export function CategorySelector({
       return allCategories;
     }
     const query = searchQuery.toLowerCase();
-    const matches = allCategories.filter((cat: any) => 
+    const matches = allCategories.filter((cat: any) =>
       cat.toLowerCase().includes(query)
     );
-    
+
     // If no matches and user is typing, allow free-text
     if (matches.length === 0 && searchQuery.length > 0) {
       setIsTyping(true);
@@ -112,7 +120,7 @@ export function CategorySelector({
     const newValue = e.target.value;
     setSearchQuery(newValue);
     // If user is typing and it's not in the list, allow free-text
-    if (newValue.length > 0 && !allCategories.some(cat => 
+    if (newValue.length > 0 && !allCategories.some(cat =>
       cat.toLowerCase() === newValue.toLowerCase()
     )) {
       onChange(newValue); // Update value directly for free-text
@@ -144,7 +152,7 @@ export function CategorySelector({
                   <CategoryIcon category={value} className="text-lg flex-shrink-0" />
                   <span className="truncate">{value}</span>
                   {isNewCategory && (
-                    <span 
+                    <span
                       className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium flex-shrink-0"
                       title="New category suggested by AI"
                     >
@@ -152,7 +160,7 @@ export function CategorySelector({
                     </span>
                   )}
                   {isAISuggested && confidenceIndicator && (
-                    <span 
+                    <span
                       className={cn(
                         "text-xs font-medium flex-shrink-0",
                         confidenceIndicator === "✓" && "text-green-600 dark:text-green-400",
@@ -179,8 +187,8 @@ export function CategorySelector({
           {/* Dropdown Menu */}
           {isOpen && (
             <>
-              <div 
-                className="fixed inset-0 z-10" 
+              <div
+                className="fixed inset-0 z-10"
                 onClick={() => setIsOpen(false)}
               />
               <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-hidden">
@@ -196,7 +204,7 @@ export function CategorySelector({
                   />
                   {isTyping && searchQuery && (
                     <p className="text-xs text-muted-foreground mt-1 px-1">
-                      Press Enter to create "{searchQuery}"
+                      Press Enter to create &quot;{searchQuery}&quot;
                     </p>
                   )}
                 </div>
@@ -235,7 +243,7 @@ export function CategorySelector({
                             <Check className="w-4 h-4 text-primary" />
                           )}
                           {aiSuggestedCategory === category && confidenceIndicator && (
-                            <span 
+                            <span
                               className={cn(
                                 "text-xs font-medium",
                                 confidenceIndicator === "✓" && "text-green-600 dark:text-green-400",
