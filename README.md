@@ -63,6 +63,14 @@ This is a monorepo built with:
 - **Charts**: Recharts
 - **Package Manager**: pnpm (workspace)
 
+### Expansive Ecosystem
+- ✅ **Marketing Website**: Public-facing pages including Features, FAQ, Company, and Legal sections
+- ✅ **Marketplace**: Platform for third-party integrations and add-ons
+- ✅ **Invoicing**: Create, send, and track professional invoices
+- ✅ **Mileage Tracking**: Log and categorize business travel for tax deductions
+- ✅ **Super Admin**: Advanced administration controls for platform management
+- ✅ **Reports**: Comprehensive financial reporting center
+
 ## 📁 Project Structure
 
 ```
